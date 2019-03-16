@@ -47,7 +47,7 @@ from sampler.constants import get_wrapper_AL_mapping
 from scorer import score_methods
 
 flags.DEFINE_string("dataset", "iris", "Dataset name")
-flags.DEFINE_string("sampling_method", "hierarchical",
+flags.DEFINE_string("sampling_method", "margin",
                     ("Name of sampling method to use, can be any defined in "
                      "AL_MAPPING in sampler.constants"))
 flags.DEFINE_float(
@@ -67,7 +67,7 @@ flags.DEFINE_string("confusions", "0.", "Percentage of labels to randomize")
 flags.DEFINE_string("active_sampling_percentage", "1.0",
                     "Mixture weights on active sampling.")
 flags.DEFINE_string(
-    "score_method", "logistic",
+    "score_method", "linear_svm",
     "Method to use to calculate accuracy.")
 flags.DEFINE_string(
     "select_method", "None",
