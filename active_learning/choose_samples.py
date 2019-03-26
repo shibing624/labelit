@@ -1,0 +1,159 @@
+# -*- coding: utf-8 -*-
+"""
+@author:XuMing（xuming624@qq.com)
+@description: 
+"""
+
+import math
+import random
+from scipy import sparse
+import numpy as np
+from sklearn.linear_model import LogisticRegression
+
+
+
+class ChooseSamples(object):
+    """ChooseSamples
+    """
+
+    @staticmethod
+    def choose_random(machine_samples_list, batch_num):
+        """
+        随机抽取数据, batch_num个, 模型不可用时, 会调用这个抽样方法
+        :param machine_samples_list: [DataObject], 机器识别的数据集
+        :param batch_num: 需要抽取的数量
+        :return: 在machine_samples_list中的抽样数据, list [DataObject]
+        """
+        samples = []
+        for i in machine_samples_list:
+            samples.append(i)
+        choose = samples if len(samples) < batch_num else random.sample(samples, batch_num)
+        return choose
+
+    @staticmethod
+    def choose_label_data_random(machine_samples_list, batch_num, lower_thres, upper_thres, label_id):
+        """
+        随机抽取阈值内的数据, batch_num个, 不足的用阈值外数据补全
+        :param machine_samples_list: [DataObject], 机器识别的数据集
+        :param batch_num: 需要抽取的个数
+        :param lower_thres: 下界
+        :param upper_thres: 上界
+        :param label_id: label
+        :return: 在machine_samples_list中的抽样数据, list [DataObject]
+        """
+        choose_sample = []
+        choose_data = dict()  # 阈值内数据的index
+        count = 0
+        for lbl in label_id:
+            unchoose_data = []  # 阈值外数据的index
+            for i in machine_samples_list:
+                if i.machine_label == lbl:
+                    if lower_thres < i.prob < upper_thres:
+                        if lbl not in choose_data:
+                            choose_data[lbl] = [i]
+                        else:
+                            temp = choose_data[lbl]
+                            temp.append(i)
+                            choose_data[lbl] = temp
+                    elif i.prob <= lower_thres:
+                        unchoose_data.append(i)
+
+            # 阈值内的数据随机抽样batch_num条来标注
+            if lbl not in choose_data:
+                continue
+            batch_num_part1 = batch_num if batch_num < len(choose_data[lbl]) else len(choose_data[lbl])
+            selected_data = random.sample(choose_data[lbl], batch_num_part1)
+
+            # 阈值外排序选择预测概率值最低待标样本
+            if batch_num_part1 < batch_num:
+                batch_num_part2 = batch_num - batch_num_part1
+                if unchoose_data:
+                    unchoose_data_sort = sorted(unchoose_data, key=lambda d: d.prob)
+                    part_selected_data = unchoose_data_sort[:batch_num_part2]
+                    selected_data = selected_data + part_selected_data
+
+            count += 1
+            for i in selected_data:
+                choose_sample.append(i)
+        print("choose_sample size：%d, label type: %d" % (len(choose_sample), count))
+        return choose_sample
+
+
+    @staticmethod
+    def index_by_rule(human_rules, rule_samples, rule_num):
+        """
+        [DESC]   根据规则抽取样本rule_num个, 返回抽取的下标
+        [INPUT]  human_rules:  set, 人工标注结果里的规则集合
+                 rule_samples: 机器识别中按规则抽样的数据index集合, rule -> [index]
+                 rule_num:     需要按规则抽样个数
+        [OUTPUT] rules_index:  [index], 抽取的样本在机器识别结果中的下标
+        """
+        rules_index = []
+        other_rules = set(rule_samples.keys()) - human_rules
+        rules = []
+        if len(other_rules) == 0:
+            if rule_num > len(rule_samples.keys()):
+                rule_num = len(rule_samples.keys())
+            rules = random.sample(rule_samples.keys(), rule_num)
+        else:
+            if rule_num > len(other_rules):
+                rule_num = len(other_rules)
+            rules = random.sample(list(other_rules), rule_num)
+        for r in rules:
+            rules_index.append(rule_samples[r][0])
+        return rules_index
+
+    @staticmethod
+    def split_by_thres(machine_samples_list, lower_thres, upper_thres):
+        """
+        [DESC]   根据预测的阈值, 从机器识别结果中划分出阈值内和阈值外的index
+        [INPUT]  machine_samples_list: 机器识别结果
+                 lower_thres:          配置阈值下界
+                 upper_thres:          配置阈值上界
+        [OUTPUT] out_index:            机器识别阈值外的index
+                 in_index:             机器识别阈值内的index
+        """
+        out_index = []
+        in_index = []
+        for s in machine_samples_list:
+            if s.prob < lower_thres or s.prob > upper_thres:
+                out_index.append(s)
+            else:
+                in_index.append(s)
+        return out_index, in_index
+
+    @staticmethod
+    def choose_label_data_by_rule(machine_samples_list, rule_samples, human_rules, batch_num,
+                                  lower_thres, upper_thres):
+        """
+        [DESC]   按规则抽取待标数据，个数为batch_num, 目的覆盖人工标注没覆盖的规则, 覆盖阈值外的样本
+        [INPUT]  machine_samples_list: [DataObject], 机器识别结果
+                 rule_samples:         {rule->[index]}
+                 human_rules:          人工标注结果中已有的规则
+                 batch_num:            抽样数
+                 lower_thres:          下界
+                 upper_thres:          上界
+        [OUTPUT] [index]:              选中数据在机器识别结果中的下标
+        """
+        # 规则，阈值外抽取占比各0.1
+        rule_prop = out_prop = 0.1
+        # 规则部分
+        rule_num = int(math.ceil(rule_prop * batch_num))
+        rule_index = ChooseSamples.index_by_rule(human_rules, rule_samples, rule_num)
+        out_index, in_index = ChooseSamples.split_by_thres(machine_samples_list, lower_thres, upper_thres)
+        # 阈值外和阈值内部分
+        o_index = set(out_index) - set(rule_index)
+        i_index = set(in_index) - set(rule_index)
+        out_thres_index = list(o_index) if rule_num > len(o_index) else \
+            random.sample(o_index, rule_num)
+        n = batch_num - len(rule_index) - len(out_thres_index)
+        n = 0 if n < 0 else n
+        in_thres_index = list(i_index) if n > len(i_index) else random.sample(i_index, n)
+        # 数量不足随机部分
+        other_n = n - len(in_thres_index)
+        other_index = []
+        if other_n > 0:
+            other_index_set = o_index - set(out_thres_index)
+            other_index = list(other_index_set) if other_n > len(other_index_set) else \
+                random.sample(other_index_set, other_n)
+        return rule_index + out_thres_index + in_thres_index + other_index

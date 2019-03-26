@@ -19,19 +19,20 @@ from __future__ import print_function
 
 import copy
 import os
-import sys
 import pickle
+import sys
+
 import numpy as np
 import scipy
+from .allconv import AllConv
+from .kernel_block_solver import BlockKernelSolver
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import GridSearchCV
 from sklearn.svm import LinearSVC
 from sklearn.svm import SVC
 from tensorflow import gfile
 
-from scorer.allconv import AllConv
-from scorer.kernel_block_solver import BlockKernelSolver
-from scorer.small_cnn import SmallCNN
+from active_learning.scorer.small_cnn import SmallCNN
 
 
 class Logger(object):
@@ -96,7 +97,6 @@ def get_mldata(data_dir, name):
     Looks for the file in data_dir.
     Assumes that data is in pickle format with dictionary fields data and target.
 
-
     Args:
       data_dir: directory to look in
       name: dataset name, assumes data is saved in the save_dir with filename
@@ -113,7 +113,7 @@ def get_mldata(data_dir, name):
         filename = os.path.join(data_dir, dataname + ".pkl")
         if not os.path.exists(filename):
             raise NameError("ERROR: dataset not available")
-        with open(filename,'rb') as f:
+        with open(filename, 'rb') as f:
             data = pickle.load(f)
 
         X = data["data"]

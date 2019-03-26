@@ -28,7 +28,7 @@ import numpy as np
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.decomposition import PCA
 
-from sampler.sampling_def import SamplingMethod
+from active_learning.sampler.sampling_def import SamplingMethod
 
 
 class Node(object):
@@ -188,7 +188,7 @@ class HierarchicalClusterAL(SamplingMethod):
           linkage: linkage method used to determine when to join clusters
           clustering: can provide an AgglomerativeClustering that is already fit
           max_features: limit number of features used to construct hierarchical
-            cluster.  If specified, PCA is used to perform feature reduction and
+            cluster.  If specified, PCA is used to perform train reduction and
             the hierarchical clustering is performed using transformed features.
         """
         self.name = 'hierarchical'

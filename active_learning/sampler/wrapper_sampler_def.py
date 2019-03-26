@@ -25,26 +25,27 @@ from __future__ import print_function
 
 import abc
 
-from sampler.constants import AL_MAPPING
-from sampler.constants import get_all_possible_arms
-from sampler.sampling_def import SamplingMethod
+from .constants import AL_MAPPING
+from .constants import get_all_possible_arms
+
+from active_learning.sampler.sampling_def import SamplingMethod
 
 get_all_possible_arms()
 
 
 class WrapperSamplingMethod(SamplingMethod):
-  __metaclass__ = abc.ABCMeta
+    __metaclass__ = abc.ABCMeta
 
-  def initialize_samplers(self, mixtures):
-    methods = []
-    for m in mixtures:
-      methods += m['methods']
-    methods = set(methods)
-    self.base_samplers = {}
-    for s in methods:
-      self.base_samplers[s] = AL_MAPPING[s](self.X, self.y, self.seed)
-    self.samplers = []
-    for m in mixtures:
-      self.samplers.append(
-          AL_MAPPING['mixture_of_samplers'](self.X, self.y, self.seed, m,
-                                            self.base_samplers))
+    def initialize_samplers(self, mixtures):
+        methods = []
+        for m in mixtures:
+            methods += m['methods']
+        methods = set(methods)
+        self.base_samplers = {}
+        for s in methods:
+            self.base_samplers[s] = AL_MAPPING[s](self.X, self.y, self.seed)
+        self.samplers = []
+        for m in mixtures:
+            self.samplers.append(
+                AL_MAPPING['mixture_of_samplers'](self.X, self.y, self.seed, m,
+                                                  self.base_samplers))

@@ -22,7 +22,8 @@ from __future__ import division
 from __future__ import print_function
 
 import numpy as np
-from sampler.sampling_def import SamplingMethod
+
+from active_learning.sampler.sampling_def import SamplingMethod
 
 
 class MarginAL(SamplingMethod):

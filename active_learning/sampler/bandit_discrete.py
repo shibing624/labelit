@@ -28,7 +28,7 @@ from __future__ import print_function
 
 import numpy as np
 
-from sampler.wrapper_sampler_def import AL_MAPPING, WrapperSamplingMethod
+from active_learning.sampler.wrapper_sampler_def import WrapperSamplingMethod
 
 
 class BanditDiscreteSampler(WrapperSamplingMethod):

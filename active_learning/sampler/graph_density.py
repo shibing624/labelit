@@ -25,10 +25,11 @@ from __future__ import print_function
 
 import copy
 
-from sklearn.neighbors import kneighbors_graph
-from sklearn.metrics import pairwise_distances
 import numpy as np
-from sampler.sampling_def import SamplingMethod
+from sklearn.metrics import pairwise_distances
+from sklearn.neighbors import kneighbors_graph
+
+from active_learning.sampler.sampling_def import SamplingMethod
 
 
 class GraphDensitySampler(SamplingMethod):

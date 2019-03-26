@@ -41,10 +41,10 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import normalize
 from tensorflow import gfile
 
-from sampler.constants import AL_MAPPING
-from sampler.constants import get_AL_sampler
-from sampler.constants import get_wrapper_AL_mapping
-from scorer import score_methods
+from active_learning.sampler.constants import AL_MAPPING
+from active_learning.sampler.constants import get_AL_sampler
+from active_learning.sampler.constants import get_wrapper_AL_mapping
+from active_learning.scorer import score_methods
 
 flags.DEFINE_string("dataset", "iris", "Dataset name")
 flags.DEFINE_string("sampling_method", "margin",

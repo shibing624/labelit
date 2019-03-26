@@ -24,9 +24,10 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from sklearn.cluster import MiniBatchKMeans
 import numpy as np
-from sampler.sampling_def import SamplingMethod
+from sklearn.cluster import MiniBatchKMeans
+
+from active_learning.sampler.sampling_def import SamplingMethod
 
 
 class RepresentativeClusterMeanSampling(SamplingMethod):
