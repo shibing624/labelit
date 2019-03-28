@@ -25,7 +25,7 @@ max_dataset_size = 15000  # maximum number of datapoints to include in data zero
 train_horizon = 1.0  # how far to extend learning curve as a percent of train
 do_save = True  # whether to save log and results
 
-upper_thres = 0.85
+upper_thres = 0.95
 lower_thres = 0.5
 label_ratio = 0.9
 label_min_num = 150
