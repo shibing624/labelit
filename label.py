@@ -5,6 +5,7 @@
 """
 
 import os
+from scipy.sparse import csr_matrix
 from time import time
 
 from sklearn.model_selection import train_test_split
@@ -16,6 +17,7 @@ from models.feature import Feature
 from preprocess import seg_data
 from utils.data_utils import dump_pkl, write_vocab, build_vocab, load_vocab, data_reader, save
 from utils.io_utils import get_logger
+import numpy as np
 
 logger = get_logger(__name__)
 
@@ -64,15 +66,14 @@ class LabelModel(object):
                  batch_size=10,
                  stop_words_path='data/stop_words.txt'):
         self.input_file_path = input_file_path
-        self.seg_input_file_path = seg_input_file_path
+        self.seg_input_file_path = seg_input_file_path if seg_input_file_path else input_file_path + "_seg"
         self.stop_words_path = stop_words_path
-        self.word_vocab_path = word_vocab_path
-        self.label_vocab_path = label_vocab_path
-        self.feature_vec_path = feature_vec_path
-        self.model_save_path = model_save_path
-        self.pred_save_path = pred_save_path
+        self.word_vocab_path = word_vocab_path if word_vocab_path else "word_vocab.txt"
+        self.label_vocab_path = label_vocab_path if label_vocab_path else "label_vocab.txt"
+        self.feature_vec_path = feature_vec_path if feature_vec_path else "feature_vec.pkl"
+        self.model_save_path = model_save_path if model_save_path else "model.pkl"
+        self.pred_save_path = pred_save_path if pred_save_path else "predict.txt"
         self.feature_type = feature_type
-        self.model_type = model_type
         self.num_classes = num_classes
         self.col_sep = col_sep
         self.min_count = min_count
@@ -97,9 +98,9 @@ class LabelModel(object):
         for i in self.seg_contents:
             word_lst.extend(i.split())
         # word vocab
-        word_vocab = build_vocab(word_lst, min_count=self.min_count, sort=True, lower=True)
+        self.word_vocab = build_vocab(word_lst, min_count=self.min_count, sort=True, lower=True)
         # save word vocab
-        write_vocab(word_vocab, self.word_vocab_path)
+        write_vocab(self.word_vocab, self.word_vocab_path)
         # label
         label_vocab = build_vocab(self.data_lbl)
         # save label vocab
@@ -111,11 +112,14 @@ class LabelModel(object):
         print(label_vocab)
         data_label = [label_id[i] for i in self.data_lbl]
         print('num_classes:%d' % self.num_classes)
-        self.data_feature = self._get_feature(word_vocab)
+        self.data_feature = self._get_feature(self.word_vocab)
 
         # 4. assemble sample DataObject
         self.samples = self._get_samples(self.data_feature)
         self.batch_num = batch_size if batch_size > 1 else batch_size * len(self.samples)
+
+        # 5. init model
+        self.model = get_model(model_type)
 
     def _get_feature(self, word_vocab):
         # 提取特征
@@ -161,109 +165,130 @@ class LabelModel(object):
     def get_unlabeled_sample_num(self):
         return self.unlabeled_sample_num
 
-    def train(self, samples, upper_thres, model_type, pred_save_path, feature_vec_path,
-              num_classes, model_save_path, feature_type, label_id, col_sep):
+    def _train(self, batch_id):
         # split labeled data and unlabeled data
         labeled_sample_list = []
         unlabeled_sample_list = []
         labeled_data_label = []
-        labeled_data_content = []
-        unlabeled_data_content = []
-        for i in samples:
-            if i.human_label or i.prob > upper_thres:
+        labeled_data_feature = []
+        unlabeled_data_feature = []
+        unlabeled_data_text = []
+        for i in self.samples:
+            if i.prob > self.upper_thres:
                 labeled_sample_list.append(i)
-                labeled_data_content.append(i.seg_text_word)
+                labeled_data_feature.append(i.feature.toarray().tolist()[0])
                 lbl = i.human_label if i.human_label else i.machine_label
                 labeled_data_label.append(lbl)
             else:
                 unlabeled_sample_list.append(i)
-                unlabeled_data_content.append(i.seg_text_word)
+                unlabeled_data_text.append(i.original_text)
+                unlabeled_data_feature.append(i.feature.toarray().tolist()[0])
         print("labeled size: %d" % len(labeled_sample_list))
         self.set_labeled_sample_num(len(labeled_sample_list))
         print("unlabeled size: %d" % len(unlabeled_sample_list))
         self.set_unlabeled_sample_num(len(unlabeled_sample_list))
         # get data feature
-        labeled_data_feature = Feature(data=labeled_data_content, feature_type=feature_type,
-                                       feature_vec_path=feature_vec_path, is_infer=True).get_feature()
-        X_train, X_val, y_train, y_val = train_test_split(labeled_data_feature, labeled_data_label)
-        model = get_model(model_type)
+        X_train, X_val, y_train, y_val = train_test_split(csr_matrix(np.array(labeled_data_feature)),
+                                                          labeled_data_label,
+                                                          test_size=0.1)
         # fit
-        model.fit(X_train, y_train)
+        self.model.fit(X_train, y_train)
 
         # save model
-        dump_pkl(model, model_save_path, overwrite=True)
-
-        eval(model, X_val, y_val, num_classes=num_classes)
+        dump_pkl(self.model, self.model_save_path, overwrite=True)
+        eval(self.model, X_val, y_val, num_classes=self.num_classes)
 
         # 预测未标注数据集
-        unlabeled_data_feature = Feature(data=unlabeled_data_content, feature_type=feature_type,
-                                         feature_vec_path=feature_vec_path, is_infer=True).get_feature()
+        pred_label_probs = self.model.predict_proba(csr_matrix(np.array(unlabeled_data_feature)))
 
-        # predict
-        pred_label_probs = model.predict_proba(unlabeled_data_feature)
-
-        # label id map
-        id_label = {v: k for k, v in label_id.items()}
-
-        pred_label_proba = [(id_label[prob.argmax()], prob.max()) for prob in pred_label_probs]
-        print(pred_label_proba[0])
+        pred_label_proba = [(self.id_label[prob.argmax()], prob.max()) for prob in pred_label_probs]
+        logger.debug(pred_label_proba[0])
 
         # save middle result
-        pred_output = [id_label[prob.argmax()] + col_sep + str(prob.max()) for prob in pred_label_probs]
-        logger.info("save infer label and prob result to: %s" % pred_save_path)
-        save(pred_output, ture_labels=None, pred_save_path=pred_save_path)
+        pred_output = [self.id_label[prob.argmax()] + self.col_sep + str(prob.max()) for prob in pred_label_probs]
+        pred_save_path = self.pred_save_path[:-4] + '_batch_' + str(batch_id) + '.txt'
+        logger.debug("save infer label and prob result to: %s" % pred_save_path)
+        save(pred_output, ture_labels=None, pred_save_path=pred_save_path,data_set=unlabeled_data_text)
 
         machine_samples_list = []
         assert len(unlabeled_sample_list) == len(pred_label_proba)
         for unlabeled_sample, label_prob in zip(unlabeled_sample_list, pred_label_proba):
-            unlabeled_sample.machine_label = label_prob[0]
-            unlabeled_sample.prob = label_prob[1]
+            idx = unlabeled_sample.id
+            self.samples[idx].machine_label = label_prob[0]
+            self.samples[idx].prob = label_prob[1]
             machine_samples_list.append(unlabeled_sample)
         return machine_samples_list
 
-    def check_model_can_finish(self, samples, machine_samples_list):
+    def _show_all_labels(self):
+        # split labeled data and unlabeled data
+        output = []
+        contents = []
+        seg_contents = []
+        features = []
+        labels = []
+        for i in self.samples:
+            label = i.human_label if i.human_label else i.machine_label
+            output.append(label + self.col_sep + str(i.prob))
+            seg_contents.append(i.seg_text_word)
+            contents.append(i.original_text)
+            labels.append(label)
+            features.append(i.feature.toarray().tolist()[0])
+        # get data feature
+        X_train, X_val, y_train, y_val = train_test_split(csr_matrix(np.array(features)), labels, test_size=0.1)
+
+        # fit
+        self.model.fit(X_train, y_train)
+
+        # save model
+        dump_pkl(self.model, self.model_save_path, overwrite=True)
+        eval(self.model, X_val, y_val, num_classes=self.num_classes)
+        save(output, ture_labels=None, pred_save_path=self.pred_save_path, data_set=contents)
+
+    def _check_model_can_finish(self, machine_samples_list):
         """
         根据识别出的标签量, 判断模型是否达到结束要求
-        :param samples: [DataObject], 所有预测的数据
         :param machine_samples_list: [DataObject], 机器预测结果
         :return: False, 需要继续迭代; True, 可以结束
         """
         flag = False
         out_index, in_index = ChooseSamples.split_by_thres(machine_samples_list, self.lower_thres,
                                                            self.upper_thres)
-        p = 1 - (len(in_index) + 0.0) / len(samples)
+        p = 1 - (len(in_index) + 0.0) / len(self.samples)
         if p >= self.label_ratio and self.get_labeled_sample_num() > self.label_min_num:
             flag = True
         return flag
 
-    def input_human_label(self, choose_sample, samples, id_label):
+    def _input_human_label(self, choose_sample):
         for i, sample in enumerate(choose_sample):
             print("batch id:%d" % i)
             print(sample)
             idx = sample.id
 
-            print("id_label:%s" % id_label)
+            print("id_label:%s" % self.id_label)
             # 检测输入标签
             while True:
                 input_label_id = input("input label id:").strip()
-                if input_label_id.isdigit() and (int(input_label_id) in id_label):
+                if input_label_id.isdigit() and (int(input_label_id) in self.id_label):
                     break
-            label = id_label[int(input_label_id)]
-            samples[idx].human_label = label
-            samples[idx].prob = 1.0
-            samples[idx].machine_label = ""
+            label = self.id_label[int(input_label_id)]
+            self.samples[idx].human_label = label
+            self.samples[idx].prob = 1.0
+            self.samples[idx].machine_label = ""
 
     def label(self):
+        batch_id = 0
         while True:
-            machine_samples_list = self.train(self.samples, self.upper_thres, self.model_type, self.pred_save_path,
-                                              self.feature_vec_path,
-                                              self.num_classes, self.model_save_path, self.feature_type, self.label_id,
-                                              self.col_sep)
-            choose_sample = ChooseSamples.choose_label_data_random(machine_samples_list, self.batch_num,
-                                                                   self.lower_thres, self.upper_thres, self.label_id)
-            if self.check_model_can_finish(self.samples, machine_samples_list):
+            machine_samples_list = self._train(batch_id)
+            if self._check_model_can_finish(machine_samples_list):
+                self._show_all_labels()
                 break
-            self.input_human_label(choose_sample, self.samples, self.id_label)
+            choose_sample = ChooseSamples.choose_label_data_random(machine_samples_list,
+                                                                   self.batch_num,
+                                                                   self.lower_thres,
+                                                                   self.upper_thres,
+                                                                   self.label_id)
+            self._input_human_label(choose_sample)
+            batch_id += 1
 
 
 if __name__ == "__main__":

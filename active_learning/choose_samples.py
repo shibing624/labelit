@@ -6,10 +6,6 @@
 
 import math
 import random
-from scipy import sparse
-import numpy as np
-from sklearn.linear_model import LogisticRegression
-
 
 
 class ChooseSamples(object):
@@ -42,42 +38,34 @@ class ChooseSamples(object):
         :return: 在machine_samples_list中的抽样数据, list [DataObject]
         """
         choose_sample = []
-        choose_data = dict()  # 阈值内数据的index
         count = 0
         for lbl in label_id:
+            choose_data = []  # 阈值内数据的index
             unchoose_data = []  # 阈值外数据的index
             for i in machine_samples_list:
                 if i.machine_label == lbl:
                     if lower_thres < i.prob < upper_thres:
-                        if lbl not in choose_data:
-                            choose_data[lbl] = [i]
-                        else:
-                            temp = choose_data[lbl]
-                            temp.append(i)
-                            choose_data[lbl] = temp
+                        choose_data.append(i)
                     elif i.prob <= lower_thres:
                         unchoose_data.append(i)
 
             # 阈值内的数据随机抽样batch_num条来标注
-            if lbl not in choose_data:
-                continue
-            batch_num_part1 = batch_num if batch_num < len(choose_data[lbl]) else len(choose_data[lbl])
-            selected_data = random.sample(choose_data[lbl], batch_num_part1)
+            batch_num_part1 = batch_num if batch_num < len(choose_data) else len(choose_data)
+            selected_data = random.sample(choose_data, batch_num_part1)
 
             # 阈值外排序选择预测概率值最低待标样本
             if batch_num_part1 < batch_num:
                 batch_num_part2 = batch_num - batch_num_part1
                 if unchoose_data:
                     unchoose_data_sort = sorted(unchoose_data, key=lambda d: d.prob)
-                    part_selected_data = unchoose_data_sort[:batch_num_part2]
-                    selected_data = selected_data + part_selected_data
+                    ext_selected_data = unchoose_data_sort[:batch_num_part2]
+                    selected_data += ext_selected_data
 
             count += 1
             for i in selected_data:
                 choose_sample.append(i)
         print("choose_sample size：%d, label type: %d" % (len(choose_sample), count))
         return choose_sample
-
 
     @staticmethod
     def index_by_rule(human_rules, rule_samples, rule_num):
@@ -90,7 +78,6 @@ class ChooseSamples(object):
         """
         rules_index = []
         other_rules = set(rule_samples.keys()) - human_rules
-        rules = []
         if len(other_rules) == 0:
             if rule_num > len(rule_samples.keys()):
                 rule_num = len(rule_samples.keys())
