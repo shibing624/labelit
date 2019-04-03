@@ -153,7 +153,8 @@ def data_reader(path, col_sep='\t'):
             if col_sep in line:
                 index = line.index(col_sep)
                 label = line[:index].strip()
-                labels.append(label)
+                if label:
+                    labels.append(label)
                 content = line[index + 1:].strip()
             else:
                 content = line

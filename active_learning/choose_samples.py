@@ -20,10 +20,9 @@ class ChooseSamples(object):
         :param batch_num: 需要抽取的数量
         :return: 在machine_samples_list中的抽样数据, list [DataObject]
         """
-        samples = []
-        for i in machine_samples_list:
-            samples.append(i)
-        choose = samples if len(samples) < batch_num else random.sample(samples, batch_num)
+        choose = machine_samples_list if len(machine_samples_list) < batch_num else random.sample(machine_samples_list,
+                                                                                                  batch_num)
+        print("choose_sample size：%d" % len(choose))
         return choose
 
     @staticmethod
@@ -103,7 +102,7 @@ class ChooseSamples(object):
         out_index = []
         in_index = []
         for s in machine_samples_list:
-            if s.prob < lower_thres or s.prob > upper_thres:
+            if s.prob <= lower_thres or s.prob >= upper_thres:
                 out_index.append(s)
             else:
                 in_index.append(s)
@@ -123,7 +122,7 @@ class ChooseSamples(object):
         [OUTPUT] [index]:              选中数据在机器识别结果中的下标
         """
         # 规则，阈值外抽取占比各0.1
-        rule_prop = out_prop = 0.1
+        rule_prop = 0.1
         # 规则部分
         rule_num = int(math.ceil(rule_prop * batch_num))
         rule_index = ChooseSamples.index_by_rule(human_rules, rule_samples, rule_num)

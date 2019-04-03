@@ -5,7 +5,6 @@ import numpy as np
 
 from sklearn import metrics
 from sklearn.metrics import classification_report
-from sklearn.metrics import precision_recall_curve
 
 
 def evaluate(y_true, y_pred):
@@ -68,20 +67,15 @@ def simple_evaluate(right_labels, pred_labels, ignore_label=None):
     return pre, rec, f
 
 
-def eval(model, test_data, test_label, thresholds=0.5, num_classes=2, pr_figure_path=None, pred_save_path=None):
+def eval(model, test_data, test_label, pred_save_path=None):
     print('{0}, val mean acc:{1}'.format(model.__str__(), model.score(test_data, test_label)))
-    if num_classes == 2:
-        # binary classification
-        label_pred_probas = model.predict_proba(test_data)[:, 1]
-        label_pred = label_pred_probas > thresholds
-        precision, recall, threshold = precision_recall_curve(test_label, label_pred)
-        plot_pr(thresholds, precision, recall, figure_path=pr_figure_path)
-    else:
-        # multi
-        label_pred = model.predict(test_data)
-        # precision_recall_curve: multiclass format is not supported
+    label_pred = model.predict(test_data)
     print(classification_report(test_label, label_pred))
-    save(label_pred, pred_save_path)
+    if pred_save_path:
+        with open(pred_save_path, 'w', encoding='utf-8') as f:
+            for i in label_pred:
+                f.write(str(i) + '\n')
+        print("save to %s" % pred_save_path)
     return label_pred
 
 
@@ -98,14 +92,6 @@ def plot_pr(auc_score, precision, recall, label=None, figure_path=None):
     pylab.grid(True, linestyle='-', color='0.75')
     pylab.plot(recall, precision, lw=1)
     pylab.savefig(figure_path)
-
-
-def save(label_pred, pred_save_path=None):
-    if pred_save_path:
-        with open(pred_save_path, 'w', encoding='utf-8') as f:
-            for i in label_pred:
-                f.write(str(i) + '\n')
-        print("save to %s" %pred_save_path)
 
 
 def plt_history(history, output_dir='output/', model_name='cnn'):

@@ -5,9 +5,10 @@
 """
 
 import os
-from scipy.sparse import csr_matrix
 from time import time
 
+import numpy as np
+from scipy.sparse import csr_matrix
 from sklearn.model_selection import train_test_split
 
 from active_learning.choose_samples import ChooseSamples
@@ -17,7 +18,6 @@ from models.feature import Feature
 from preprocess import seg_data
 from utils.data_utils import dump_pkl, write_vocab, build_vocab, load_vocab, data_reader, save
 from utils.io_utils import get_logger
-import numpy as np
 
 logger = get_logger(__name__)
 
@@ -39,7 +39,8 @@ class DataObject(object):
         self.need_label = need_label  # 是否需要标注
 
     def __repr__(self):
-        return "id:" + str(self.id) + "\toriginal_text:" + self.original_text
+        return "id: %s, label: %s, prob: %f, original_text: %s" % (
+            self.id, self.machine_label, self.prob, self.original_text)
 
 
 class LabelModel(object):
@@ -62,8 +63,9 @@ class LabelModel(object):
                  lower_thres=0.5,
                  upper_thres=0.85,
                  label_ratio=0.9,
-                 label_min_num=200,
+                 label_min_size=200,
                  batch_size=10,
+                 warmstart_size=0.02,
                  stop_words_path='data/stop_words.txt'):
         self.input_file_path = input_file_path
         self.seg_input_file_path = seg_input_file_path if seg_input_file_path else input_file_path + "_seg"
@@ -80,7 +82,6 @@ class LabelModel(object):
         self.lower_thres = lower_thres
         self.upper_thres = upper_thres
         self.label_ratio = label_ratio
-        self.label_min_num = label_min_num
 
         # 1. load segment data
         if not os.path.exists(self.seg_input_file_path):
@@ -106,24 +107,24 @@ class LabelModel(object):
         # save label vocab
         write_vocab(label_vocab, self.label_vocab_path)
         label_id = load_vocab(self.label_vocab_path)
-        print(label_id)
+        print("label_id: %s" % label_id)
         self.set_label_id(label_id)
         self.id_label = {v: k for k, v in label_id.items()}
-        print(label_vocab)
-        data_label = [label_id[i] for i in self.data_lbl]
         print('num_classes:%d' % self.num_classes)
         self.data_feature = self._get_feature(self.word_vocab)
 
         # 4. assemble sample DataObject
         self.samples = self._get_samples(self.data_feature)
         self.batch_num = batch_size if batch_size > 1 else batch_size * len(self.samples)
+        self.warmstart_num = warmstart_size if warmstart_size > 1 else warmstart_size * len(self.samples)
+        self.label_min_num = label_min_size if label_min_size > 1 else label_min_size * len(self.samples)
 
         # 5. init model
         self.model = get_model(model_type)
 
     def _get_feature(self, word_vocab):
         # 提取特征
-        print(self.feature_type)
+        print("feature_type : %s" % self.feature_type)
         print("seg_contents:")
         print(self.seg_contents[:2])
         feature = Feature(data=self.seg_contents, feature_type=self.feature_type,
@@ -165,52 +166,50 @@ class LabelModel(object):
     def get_unlabeled_sample_num(self):
         return self.unlabeled_sample_num
 
-    def _train(self, batch_id):
+    def _split_labeled_unlabeled_samples(self):
         # split labeled data and unlabeled data
         labeled_sample_list = []
         unlabeled_sample_list = []
-        labeled_data_label = []
-        labeled_data_feature = []
-        unlabeled_data_feature = []
-        unlabeled_data_text = []
         for i in self.samples:
-            if i.prob > self.upper_thres:
+            if i.prob >= self.upper_thres:
                 labeled_sample_list.append(i)
-                labeled_data_feature.append(i.feature.toarray().tolist()[0])
-                lbl = i.human_label if i.human_label else i.machine_label
-                labeled_data_label.append(lbl)
             else:
                 unlabeled_sample_list.append(i)
-                unlabeled_data_text.append(i.original_text)
-                unlabeled_data_feature.append(i.feature.toarray().tolist()[0])
-        print("labeled size: %d" % len(labeled_sample_list))
+        logger.info("labeled size: %d" % len(labeled_sample_list))
         self.set_labeled_sample_num(len(labeled_sample_list))
-        print("unlabeled size: %d" % len(unlabeled_sample_list))
+        logger.info("unlabeled size: %d" % len(unlabeled_sample_list))
         self.set_unlabeled_sample_num(len(unlabeled_sample_list))
+        return labeled_sample_list, unlabeled_sample_list
+
+    def _train(self, labeled_sample_list, unlabeled_sample_list, batch_id):
+        machine_samples_list = []
         # get data feature
+        labeled_data_label = [i.human_label if i.human_label else i.machine_label for i in labeled_sample_list]
+        labeled_data_feature = [i.feature.toarray().tolist()[0] for i in labeled_sample_list]
         X_train, X_val, y_train, y_val = train_test_split(csr_matrix(np.array(labeled_data_feature)),
-                                                          labeled_data_label,
-                                                          test_size=0.1)
+                                                          labeled_data_label)
         # fit
         self.model.fit(X_train, y_train)
 
         # save model
         dump_pkl(self.model, self.model_save_path, overwrite=True)
-        eval(self.model, X_val, y_val, num_classes=self.num_classes)
+        eval(self.model, X_val, y_val)
 
         # 预测未标注数据集
-        pred_label_probs = self.model.predict_proba(csr_matrix(np.array(unlabeled_data_feature)))
+        unlabeled_data_feature = [i.feature.toarray().tolist()[0] for i in unlabeled_sample_list]
+        if not unlabeled_sample_list:
+            return machine_samples_list
+        pred_result = self.model.predict_proba(csr_matrix(np.array(unlabeled_data_feature)))
 
-        pred_label_proba = [(self.id_label[prob.argmax()], prob.max()) for prob in pred_label_probs]
-        logger.debug(pred_label_proba[0])
+        pred_label_proba = [(self.id_label[prob.argmax()], prob.max()) for prob in pred_result]
 
         # save middle result
-        pred_output = [self.id_label[prob.argmax()] + self.col_sep + str(prob.max()) for prob in pred_label_probs]
+        pred_output = [self.id_label[prob.argmax()] + self.col_sep + str(prob.max()) for prob in pred_result]
         pred_save_path = self.pred_save_path[:-4] + '_batch_' + str(batch_id) + '.txt'
         logger.debug("save infer label and prob result to: %s" % pred_save_path)
-        save(pred_output, ture_labels=None, pred_save_path=pred_save_path,data_set=unlabeled_data_text)
+        unlabeled_data_text = [i.original_text for i in unlabeled_sample_list]
+        save(pred_output, ture_labels=None, pred_save_path=pred_save_path, data_set=unlabeled_data_text)
 
-        machine_samples_list = []
         assert len(unlabeled_sample_list) == len(pred_label_proba)
         for unlabeled_sample, label_prob in zip(unlabeled_sample_list, pred_label_proba):
             idx = unlabeled_sample.id
@@ -234,15 +233,36 @@ class LabelModel(object):
             labels.append(label)
             features.append(i.feature.toarray().tolist()[0])
         # get data feature
-        X_train, X_val, y_train, y_val = train_test_split(csr_matrix(np.array(features)), labels, test_size=0.1)
+        X_train, X_val, y_train, y_val = train_test_split(csr_matrix(np.array(features)), labels)
 
         # fit
         self.model.fit(X_train, y_train)
 
         # save model
         dump_pkl(self.model, self.model_save_path, overwrite=True)
-        eval(self.model, X_val, y_val, num_classes=self.num_classes)
+        eval(self.model, X_val, y_val)
         save(output, ture_labels=None, pred_save_path=self.pred_save_path, data_set=contents)
+
+    def _check_model_can_start(self, labeled_samples_list):
+        """
+        根据识别出的标签量, 判断模型是否达到开始训练要求
+        :param labeled_samples_list: [DataObject], 人工标注结果
+        :return: False, 不可以训练; True, 可以开始训练
+        """
+        human_labels = [i.human_label for i in labeled_samples_list]
+        assert len(set(human_labels)) == self.num_classes, "human label type need same as num classes."
+        labeled_type_num = dict()
+        for i in set(human_labels):
+            count = 0
+            for j in human_labels:
+                if j == i:
+                    count += 1
+            labeled_type_num[i] = count
+
+        for k, v in labeled_type_num.items():
+            if v < self.warmstart_num:
+                return False
+        return True
 
     def _check_model_can_finish(self, machine_samples_list):
         """
@@ -253,7 +273,9 @@ class LabelModel(object):
         flag = False
         out_index, in_index = ChooseSamples.split_by_thres(machine_samples_list, self.lower_thres,
                                                            self.upper_thres)
+        logger.debug("[check model finish] out samples:%d; in samples:%d" % (len(out_index), len(in_index)))
         p = 1 - (len(in_index) + 0.0) / len(self.samples)
+        logger.debug("[check model finish] p:%f; label_ratio:%f" % (p, self.label_ratio))
         if p >= self.label_ratio and self.get_labeled_sample_num() > self.label_min_num:
             flag = True
         return flag
@@ -278,7 +300,11 @@ class LabelModel(object):
     def label(self):
         batch_id = 0
         while True:
-            machine_samples_list = self._train(batch_id)
+            labeled_sample_list, unlabeled_sample_list = self._split_labeled_unlabeled_samples()
+            if batch_id == 0 and (not self._check_model_can_start(labeled_sample_list)):
+                choose_sample = ChooseSamples.choose_random(unlabeled_sample_list, self.batch_num)
+                self._input_human_label(choose_sample)
+            machine_samples_list = self._train(labeled_sample_list, unlabeled_sample_list, batch_id)
             if self._check_model_can_finish(machine_samples_list):
                 self._show_all_labels()
                 break
@@ -309,6 +335,7 @@ if __name__ == "__main__":
                     lower_thres=config.lower_thres,
                     upper_thres=config.upper_thres,
                     label_ratio=config.label_ratio,
-                    label_min_num=config.label_min_num,
-                    batch_size=config.batch_size)
+                    label_min_size=config.label_min_size,
+                    batch_size=config.batch_size,
+                    warmstart_size=config.warmstart_size)
     lm.label()
