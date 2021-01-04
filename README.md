@@ -1,5 +1,5 @@
 # labelit
-label text and image with active learning for annotation system.
+label text and image based on active learning.
 
 # Active Learning Playground
 
