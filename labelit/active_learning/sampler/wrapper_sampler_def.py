@@ -28,7 +28,7 @@ import abc
 from .constants import AL_MAPPING
 from .constants import get_all_possible_arms
 
-from active_learning.sampler.sampling_def import SamplingMethod
+from .sampling_def import SamplingMethod
 
 get_all_possible_arms()
 

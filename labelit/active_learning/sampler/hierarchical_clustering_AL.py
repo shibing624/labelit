@@ -28,7 +28,7 @@ import numpy as np
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.decomposition import PCA
 
-from active_learning.sampler.sampling_def import SamplingMethod
+from .sampling_def import SamplingMethod
 
 
 class Node(object):

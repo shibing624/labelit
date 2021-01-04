@@ -32,7 +32,7 @@ from sklearn.svm import LinearSVC
 from sklearn.svm import SVC
 from tensorflow import gfile
 
-from active_learning.scorer.small_cnn import SmallCNN
+from .small_cnn import SmallCNN
 
 
 class Logger(object):

@@ -11,13 +11,14 @@ import numpy as np
 from scipy.sparse import csr_matrix
 from sklearn.model_selection import train_test_split
 
-from active_learning.choose_samples import ChooseSamples
-from models.classic_model import get_model
-from models.evaluate import eval
-from models.feature import Feature
-from preprocess import seg_data
-from utils.data_utils import dump_pkl, write_vocab, build_vocab, load_vocab, data_reader, save
-from utils.io_utils import get_logger
+from labelit import config
+from labelit.active_learning.choose_samples import ChooseSamples
+from labelit.models.classic_model import get_model
+from labelit.models.evaluate import eval
+from labelit.models.feature import Feature
+from labelit.preprocess import seg_data
+from labelit.utils.data_utils import dump_pkl, write_vocab, build_vocab, load_vocab, data_reader, save
+from labelit.utils.io_utils import get_logger
 
 logger = get_logger(__name__)
 
@@ -25,8 +26,19 @@ logger = get_logger(__name__)
 class DataObject(object):
     """数据字段定义"""
 
-    def __init__(self, id=0, original_text="", seg_text_word="", seg_text_char="", human_label="", machine_label="",
-                 prob=0.0, feature="", rule_word="", need_label=False):
+    def __init__(
+            self,
+            id=0,
+            original_text="",
+            seg_text_word="",
+            seg_text_char="",
+            human_label="",
+            machine_label="",
+            prob=0.0,
+            feature="",
+            rule_word="",
+            need_label=False
+    ):
         self.id = id
         self.original_text = original_text  # 原物料,未切词
         self.seg_text_word = seg_text_word  # 切词结果(混排)
@@ -48,27 +60,32 @@ class LabelModel(object):
     Online Model for Label
     """
 
-    def __init__(self, input_file_path,
-                 seg_input_file_path='',
-                 word_vocab_path='',
-                 label_vocab_path='',
-                 feature_vec_path='',
-                 model_save_path='',
-                 pred_save_path='',
-                 feature_type='tf_word',
-                 model_type='logistic',
-                 num_classes=2,
-                 col_sep='\t',
-                 min_count=1,
-                 lower_thres=0.5,
-                 upper_thres=0.85,
-                 label_ratio=0.9,
-                 label_min_size=200,
-                 batch_size=10,
-                 warmstart_size=0.02,
-                 stop_words_path='data/stop_words.txt'):
+    def __init__(
+            self,
+            input_file_path=config.input_file_path,
+            seg_input_file_path=config.seg_input_file_path,
+            word_vocab_path=config.word_vocab_path,
+            label_vocab_path=config.label_vocab_path,
+            feature_vec_path=config.feature_vec_path,
+            model_save_path=config.model_save_path,
+            pred_save_path=config.pred_save_path,
+            feature_type=config.feature_type,
+            model_type=config.model_type,
+            num_classes=config.num_classes,
+            col_sep=config.col_sep,
+            min_count=config.min_count,
+            lower_thres=config.lower_thres,
+            upper_thres=config.upper_thres,
+            label_ratio=config.label_ratio,
+            label_min_size=config.label_min_size,
+            batch_size=config.batch_size,
+            warmstart_size=config.warmstart_size,
+            sentence_symbol_path=config.sentence_symbol_path,
+            stop_words_path=config.stop_words_path,
+    ):
         self.input_file_path = input_file_path
         self.seg_input_file_path = seg_input_file_path if seg_input_file_path else input_file_path + "_seg"
+        self.sentence_symbol_path = sentence_symbol_path
         self.stop_words_path = stop_words_path
         self.word_vocab_path = word_vocab_path if word_vocab_path else "word_vocab.txt"
         self.label_vocab_path = label_vocab_path if label_vocab_path else "label_vocab.txt"
@@ -127,8 +144,12 @@ class LabelModel(object):
         print("feature_type : %s" % self.feature_type)
         print("seg_contents:")
         print(self.seg_contents[:2])
-        feature = Feature(data=self.seg_contents, feature_type=self.feature_type,
-                          feature_vec_path=self.feature_vec_path, word_vocab=word_vocab)
+        feature = Feature(data=self.seg_contents,
+                          feature_type=self.feature_type,
+                          feature_vec_path=self.feature_vec_path,
+                          word_vocab=word_vocab,
+                          sentence_symbol_path=self.sentence_symbol_path,
+                          stop_words_path=self.stop_words_path)
         # get data feature
         return feature.get_feature()
 
@@ -318,24 +339,7 @@ class LabelModel(object):
 
 
 if __name__ == "__main__":
-    import config
+    from labelit import config
 
-    lm = LabelModel(config.input_file_path,
-                    config.seg_input_file_path,
-                    config.word_vocab_path,
-                    config.label_vocab_path,
-                    config.feature_vec_path,
-                    config.model_save_path,
-                    config.pred_save_path,
-                    feature_type=config.feature_type,
-                    model_type=config.model_type,
-                    num_classes=config.num_classes,
-                    col_sep=config.col_sep,
-                    min_count=config.min_count,
-                    lower_thres=config.lower_thres,
-                    upper_thres=config.upper_thres,
-                    label_ratio=config.label_ratio,
-                    label_min_size=config.label_min_size,
-                    batch_size=config.batch_size,
-                    warmstart_size=config.warmstart_size)
+    lm = LabelModel()
     lm.label()

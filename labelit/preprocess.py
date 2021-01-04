@@ -6,8 +6,8 @@ from time import time
 
 import jieba
 
-import config
-from utils.io_utils import get_logger
+from labelit import config
+from labelit.utils.io_utils import get_logger
 
 logger = get_logger(__name__)
 

@@ -8,8 +8,8 @@ from sklearn import preprocessing
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.feature_selection import SelectKBest, chi2
 
-from utils.data_utils import dump_pkl, load_pkl, get_char_segment_data, load_list
-from utils.io_utils import get_logger
+from labelit.utils.data_utils import dump_pkl, load_pkl, get_char_segment_data, load_list
+from labelit.utils.io_utils import get_logger
 
 logger = get_logger(__name__)
 
@@ -19,17 +19,22 @@ class Feature(object):
     get feature from raw text
     """
 
-    def __init__(self, data=None,
-                 feature_type='tfidf_char',
-                 feature_vec_path=None,
-                 is_infer=False,
-                 word_vocab=None,
-                 max_len=400):
+    def __init__(
+            self,
+            data,
+            feature_type='tfidf_char',
+            feature_vec_path='',
+            is_infer=False,
+            word_vocab='',
+            max_len=400,
+            sentence_symbol_path='',
+            stop_words_path=''
+    ):
         self.data_set = data
         self.feature_type = feature_type
         self.feature_vec_path = feature_vec_path
-        self.sentence_symbol = load_list(path='data/sentence_symbol.txt')
-        self.stop_words = load_list(path='data/stop_words.txt')
+        self.sentence_symbol = load_list(sentence_symbol_path)
+        self.stop_words = load_list(stop_words_path)
         self.is_infer = is_infer
         self.word_vocab = word_vocab
         self.max_len = max_len
@@ -98,7 +103,7 @@ class Feature(object):
                                               vocabulary=self.word_vocab, sublinear_tf=True)
             data_feature = self.vectorizer.fit_transform(data_set)
         vocab = self.vectorizer.vocabulary_
-        logger.debug('Vocab size:%d'% len(vocab))
+        logger.debug('Vocab size:%d' % len(vocab))
         logger.debug('Vocab list:')
         count = 0
         for k, v in self.vectorizer.vocabulary_.items():

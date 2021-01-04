@@ -29,7 +29,7 @@ import numpy as np
 from sklearn.metrics import pairwise_distances
 from sklearn.neighbors import kneighbors_graph
 
-from active_learning.sampler.sampling_def import SamplingMethod
+from .sampling_def import SamplingMethod
 
 
 class GraphDensitySampler(SamplingMethod):

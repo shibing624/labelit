@@ -27,7 +27,7 @@ from __future__ import print_function
 import numpy as np
 from sklearn.cluster import MiniBatchKMeans
 
-from active_learning.sampler.sampling_def import SamplingMethod
+from .sampling_def import SamplingMethod
 
 
 class RepresentativeClusterMeanSampling(SamplingMethod):

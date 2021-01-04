@@ -9,7 +9,6 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
-from xgboost import XGBClassifier
 
 
 def get_model(model_type):
@@ -24,6 +23,7 @@ def get_model(model_type):
     elif model_type == "bayes":
         model = MultinomialNB()  # 速度快，准确率低。val mean acc:0.62
     elif model_type == "xgboost":
+        from xgboost import XGBClassifier
         model = XGBClassifier()  # 速度慢，准确率高。val mean acc:0.95
     elif model_type == "svm":
         model = SVC(kernel='linear', probability=True)  # 速度慢，准确率高，val mean acc:0.945

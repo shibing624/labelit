@@ -24,7 +24,7 @@ import copy
 
 from .constants import AL_MAPPING, get_base_AL_mapping
 
-from active_learning.sampler.sampling_def import SamplingMethod
+from .sampling_def import SamplingMethod
 
 get_base_AL_mapping()
 

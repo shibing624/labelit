@@ -23,7 +23,7 @@ import math
 
 import numpy as np
 
-from active_learning.sampler.wrapper_sampler_def import WrapperSamplingMethod
+from .wrapper_sampler_def import WrapperSamplingMethod
 
 
 class SimulateBatchSampler(WrapperSamplingMethod):

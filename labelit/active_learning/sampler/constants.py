@@ -21,13 +21,13 @@ AL_MAPPING = {}
 
 
 def get_base_AL_mapping():
-    from active_learning.sampler.margin_AL import MarginAL
-    from active_learning.sampler.informative_diverse import InformativeClusterDiverseSampler
-    from active_learning.sampler.hierarchical_clustering_AL import HierarchicalClusterAL
-    from active_learning.sampler.uniform_sampling import UniformSampling
-    from active_learning.sampler.represent_cluster_centers import RepresentativeClusterMeanSampling
-    from active_learning.sampler.graph_density import GraphDensitySampler
-    from active_learning.sampler.kcenter_greedy import kCenterGreedy
+    from .margin_AL import MarginAL
+    from .informative_diverse import InformativeClusterDiverseSampler
+    from .hierarchical_clustering_AL import HierarchicalClusterAL
+    from .uniform_sampling import UniformSampling
+    from .represent_cluster_centers import RepresentativeClusterMeanSampling
+    from .graph_density import GraphDensitySampler
+    from .kcenter_greedy import kCenterGreedy
     AL_MAPPING['margin'] = MarginAL
     AL_MAPPING['informative_diverse'] = InformativeClusterDiverseSampler
     AL_MAPPING['hierarchical'] = HierarchicalClusterAL
@@ -38,13 +38,13 @@ def get_base_AL_mapping():
 
 
 def get_all_possible_arms():
-    from active_learning.sampler.mixture_of_samplers import MixtureOfSamplers
+    from .mixture_of_samplers import MixtureOfSamplers
     AL_MAPPING['mixture_of_samplers'] = MixtureOfSamplers
 
 
 def get_wrapper_AL_mapping():
-    from active_learning.sampler.bandit_discrete import BanditDiscreteSampler
-    from active_learning.sampler.simulate_batch import SimulateBatchSampler
+    from .bandit_discrete import BanditDiscreteSampler
+    from .simulate_batch import SimulateBatchSampler
     AL_MAPPING['bandit_mixture'] = partial(
         BanditDiscreteSampler,
         samplers=[{
