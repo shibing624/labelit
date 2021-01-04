@@ -1,5 +1,5 @@
-# intelligent-annotation
-active learning for annotation system.
+# labelit
+label text and image with active learning for annotation system.
 
 # Active Learning Playground
 
