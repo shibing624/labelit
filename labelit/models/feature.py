@@ -2,16 +2,12 @@
 # Author: XuMing <xuming624@qq.com>
 # Brief:
 
-from keras.preprocessing.sequence import pad_sequences
-from keras.preprocessing.text import Tokenizer
 from sklearn import preprocessing
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.feature_selection import SelectKBest, chi2
 
 from labelit.utils.data_utils import dump_pkl, load_pkl, get_char_segment_data, load_list
-from labelit.utils.io_utils import get_logger
-
-logger = get_logger(__name__)
+from labelit.utils.logger import logger
 
 
 class Feature(object):
@@ -52,6 +48,8 @@ class Feature(object):
         return data_feature
 
     def vectorize(self, data_set):
+        from keras.preprocessing.text import Tokenizer
+        from keras.preprocessing.sequence import pad_sequences
         tokenizer = Tokenizer()
         tokenizer.fit_on_texts(data_set)
         sequences = tokenizer.texts_to_sequences(data_set)
@@ -84,7 +82,7 @@ class Feature(object):
                 logger.debug("%s	%s" % (k, v))
                 count += 1
 
-        logger.debug(data_feature.shape)
+        logger.debug(f"data_feature.shape: {data_feature.shape}")
         if not self.is_infer:
             dump_pkl(self.vectorizer, self.feature_vec_path, overwrite=True)
         return data_feature

@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-@author:XuMing（xuming624@qq.com)
+@author:XuMing(xuming624@qq.com)
 @description: 
 """
 
 import math
 import random
+from labelit.utils.logger import logger
 
 
 class ChooseSamples(object):
@@ -22,7 +23,7 @@ class ChooseSamples(object):
         """
         choose = machine_samples_list if len(machine_samples_list) < batch_num else random.sample(machine_samples_list,
                                                                                                   batch_num)
-        print("choose_sample size：%d" % len(choose))
+        logger.info("choose_sample size：%d" % len(choose))
         return choose
 
     @staticmethod
@@ -63,7 +64,7 @@ class ChooseSamples(object):
             count += 1
             for i in selected_data:
                 choose_sample.append(i)
-        print("choose_sample size：%d, label type: %d" % (len(choose_sample), count))
+        logger.info("choose_sample size：%d, label size: %d" % (len(choose_sample), count))
         return choose_sample
 
     @staticmethod
@@ -90,7 +91,7 @@ class ChooseSamples(object):
         return rules_index
 
     @staticmethod
-    def split_by_thres(machine_samples_list, lower_thres, upper_thres):
+    def split_by_threshold(machine_samples_list, lower_thres, upper_thres):
         """
         [DESC]   根据预测的阈值, 从机器识别结果中划分出阈值内和阈值外的index
         [INPUT]  machine_samples_list: 机器识别结果
@@ -126,7 +127,7 @@ class ChooseSamples(object):
         # 规则部分
         rule_num = int(math.ceil(rule_prop * batch_num))
         rule_index = ChooseSamples.index_by_rule(human_rules, rule_samples, rule_num)
-        out_index, in_index = ChooseSamples.split_by_thres(machine_samples_list, lower_thres, upper_thres)
+        out_index, in_index = ChooseSamples.split_by_threshold(machine_samples_list, lower_thres, upper_thres)
         # 阈值外和阈值内部分
         o_index = set(out_index) - set(rule_index)
         i_index = set(in_index) - set(rule_index)

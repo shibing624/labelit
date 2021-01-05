@@ -5,6 +5,7 @@ import numpy as np
 
 from sklearn import metrics
 from sklearn.metrics import classification_report
+from labelit.utils.logger import logger
 
 
 def evaluate(y_true, y_pred):
@@ -62,20 +63,19 @@ def simple_evaluate(right_labels, pred_labels, ignore_label=None):
     rec = len(np.where(rec_pro_labels == rec_right_labels)[0]) / float(len(rec_right_labels))
     f = 0. if (pre + rec) == 0. \
         else (pre * rec * 2.) / (pre + rec)
-    print('P:', pre, '\tR:', rec, '\tF:', f)
-    print(classification_report(right_labels, pred_labels))
+    logger.info(f'P:{pre}, R:{rec}, F:{f}\n{classification_report(right_labels, pred_labels)}')
     return pre, rec, f
 
 
 def eval(model, test_data, test_label, pred_save_path=None):
-    print('{0}, val mean acc:{1}'.format(model.__str__(), model.score(test_data, test_label)))
+    logger.info('{0}, val mean acc:{1}'.format(model.__str__(), model.score(test_data, test_label)))
     label_pred = model.predict(test_data)
-    print(classification_report(test_label, label_pred))
+    logger.info(classification_report(test_label, label_pred))
     if pred_save_path:
         with open(pred_save_path, 'w', encoding='utf-8') as f:
             for i in label_pred:
                 f.write(str(i) + '\n')
-        print("save to %s" % pred_save_path)
+        logger.info("save to %s" % pred_save_path)
     return label_pred
 
 

@@ -7,9 +7,7 @@ from time import time
 import jieba
 
 from labelit import config
-from labelit.utils.io_utils import get_logger
-
-logger = get_logger(__name__)
+from labelit.utils.logger import logger
 
 
 def read_stopwords(path):
@@ -48,10 +46,10 @@ def seg_data(in_file, out_file, col_sep='\t', stop_words_path=''):
                 seg_words.append(i)
             seg_line = ' '.join(seg_words)
             if count % 10000 == 0:
-                logger.info('count:%d' % count)
-                logger.info(line)
-                logger.info('=' * 20)
-                logger.info(seg_line)
+                logger.debug('count:%d' % count)
+                logger.debug(line)
+                logger.debug('=' * 20)
+                logger.debug(seg_line)
             count += 1
             f2.write('%s\t%s\n' % (label, seg_line))
         logger.info('%s to %s, size: %d' % (in_file, out_file, count))
@@ -61,4 +59,4 @@ if __name__ == '__main__':
     start_time = time()
     seg_data(config.input_file_path, config.seg_input_file_path, col_sep=config.col_sep,
              stop_words_path=config.stop_words_path)
-    logger.info("spend time: %s s" % (time() - start_time))
+    print("spend time: %s s" % (time() - start_time))

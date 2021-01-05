@@ -6,6 +6,8 @@ import pickle
 from codecs import open
 from collections import defaultdict
 
+from .logger import logger
+
 
 def build_vocab(items, sort=True, min_count=0, lower=False):
     """
@@ -51,14 +53,14 @@ def write_vocab(vocab, filename):
         write a word per line
 
     """
-    print("Writing vocab...")
+    logger.info("Writing vocab...")
     with open(filename, "w", encoding='utf-8') as f:
         for i, word in enumerate(vocab):
             if i != len(vocab) - 1:
                 f.write(word + '\n')
             else:
                 f.write(word)
-    print("- write to {} done. {} tokens".format(filename, len(vocab)))
+    logger.info("- write to {} done. {} tokens".format(filename, len(vocab)))
 
 
 def load_vocab(filename):
@@ -106,7 +108,7 @@ def dump_pkl(vocab, pkl_path, overwrite=True):
     if pkl_path:
         with open(pkl_path, 'wb') as f:
             pickle.dump(vocab, f, protocol=pickle.HIGHEST_PROTOCOL)
-        print("save %s ok." % pkl_path)
+        logger.info("save to {} ok.".format(pkl_path))
 
 
 def get_char_segment_data(contents, word_sep=' ', pos_sep='/'):
@@ -142,7 +144,7 @@ def save(pred_labels, ture_labels=None, pred_save_path=None, data_set=None):
                         f.write(pred_labels[i] + '\t' + data_set[i] + '\n')
                     else:
                         f.write(pred_labels[i] + '\n')
-        print("pred_save_path:", pred_save_path)
+        logger.info("pred_save_path: {}".format(pred_save_path))
 
 
 def data_reader(path, col_sep='\t'):

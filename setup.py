@@ -46,7 +46,7 @@ setup(
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Topic :: Text Processing :: Linguistic',
-        "Topic :: Scientific/Engineering :: Artificial Intelligence",
+        'Topic :: Scientific/Engineering :: Artificial Intelligence',
     ],
     platforms=["Windows", "Linux", "Solaris", "Mac OS-X", "Unix"],
     keywords='labelit,active learning,label text,label image',

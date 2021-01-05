@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-@author:XuMing（xuming624@qq.com)
+@author:XuMing(xuming624@qq.com)
 @description: 智能标注
 """
 
@@ -18,9 +18,7 @@ from labelit.models.evaluate import eval
 from labelit.models.feature import Feature
 from labelit.preprocess import seg_data
 from labelit.utils.data_utils import dump_pkl, write_vocab, build_vocab, load_vocab, data_reader, save
-from labelit.utils.io_utils import get_logger
-
-logger = get_logger(__name__)
+from labelit.utils.logger import logger
 
 
 class DataObject(object):
@@ -28,7 +26,7 @@ class DataObject(object):
 
     def __init__(
             self,
-            id=0,
+            index=0,
             original_text="",
             seg_text_word="",
             seg_text_char="",
@@ -37,11 +35,11 @@ class DataObject(object):
             prob=0.0,
             feature="",
             rule_word="",
-            need_label=False
+            need_label=False,
     ):
-        self.id = id
+        self.index = index  # index值
         self.original_text = original_text  # 原物料,未切词
-        self.seg_text_word = seg_text_word  # 切词结果(混排)
+        self.seg_text_word = seg_text_word  # 切词结果
         self.seg_text_char = seg_text_char  # 切字结果
         self.human_label = human_label  # 人工标注结果
         self.machine_label = machine_label  # 机器预测标签
@@ -51,8 +49,8 @@ class DataObject(object):
         self.need_label = need_label  # 是否需要标注
 
     def __repr__(self):
-        return "id: %s, label: %s, prob: %f, original_text: %s" % (
-            self.id, self.machine_label, self.prob, self.original_text)
+        return "index: %s, label: %s, prob: %f, original_text: %s" % (
+            self.index, self.machine_label, self.prob, self.original_text)
 
 
 class LabelModel(object):
@@ -124,10 +122,10 @@ class LabelModel(object):
         # save label vocab
         write_vocab(label_vocab, self.label_vocab_path)
         label_id = load_vocab(self.label_vocab_path)
-        print("label_id: %s" % label_id)
+        logger.info("label_id: %s" % label_id)
         self.set_label_id(label_id)
         self.id_label = {v: k for k, v in label_id.items()}
-        print('num_classes:%d' % self.num_classes)
+        logger.info('num_classes:%d' % self.num_classes)
         self.data_feature = self._get_feature(self.word_vocab)
 
         # 4. assemble sample DataObject
@@ -141,9 +139,7 @@ class LabelModel(object):
 
     def _get_feature(self, word_vocab):
         # 提取特征
-        print("feature_type : %s" % self.feature_type)
-        print("seg_contents:")
-        print(self.seg_contents[:2])
+        logger.info(f"feature_type: {self.feature_type}\nseg_contents: \n{self.seg_contents[:2]}")
         feature = Feature(data=self.seg_contents,
                           feature_type=self.feature_type,
                           feature_vec_path=self.feature_vec_path,
@@ -196,9 +192,8 @@ class LabelModel(object):
                 labeled_sample_list.append(i)
             else:
                 unlabeled_sample_list.append(i)
-        logger.info("labeled size: %d" % len(labeled_sample_list))
         self.set_labeled_sample_num(len(labeled_sample_list))
-        logger.info("unlabeled size: %d" % len(unlabeled_sample_list))
+        logger.info(f"labeled size: {len(labeled_sample_list)}; unlabeled size: {len(unlabeled_sample_list)}")
         self.set_unlabeled_sample_num(len(unlabeled_sample_list))
         return labeled_sample_list, unlabeled_sample_list
 
@@ -221,7 +216,6 @@ class LabelModel(object):
         if not unlabeled_sample_list:
             return machine_samples_list
         pred_result = self.model.predict_proba(csr_matrix(np.array(unlabeled_data_feature)))
-
         pred_label_proba = [(self.id_label[prob.argmax()], prob.max()) for prob in pred_result]
 
         # save middle result
@@ -233,9 +227,8 @@ class LabelModel(object):
 
         assert len(unlabeled_sample_list) == len(pred_label_proba)
         for unlabeled_sample, label_prob in zip(unlabeled_sample_list, pred_label_proba):
-            idx = unlabeled_sample.id
-            self.samples[idx].machine_label = label_prob[0]
-            self.samples[idx].prob = label_prob[1]
+            self.samples[unlabeled_sample.index].machine_label = label_prob[0]
+            self.samples[unlabeled_sample.index].prob = label_prob[1]
             machine_samples_list.append(unlabeled_sample)
         return machine_samples_list
 
@@ -291,32 +284,36 @@ class LabelModel(object):
         :param machine_samples_list: [DataObject], 机器预测结果
         :return: False, 需要继续迭代; True, 可以结束
         """
-        flag = False
-        out_index, in_index = ChooseSamples.split_by_thres(machine_samples_list, self.lower_thres,
-                                                           self.upper_thres)
-        logger.debug("[check model finish] out samples:%d; in samples:%d" % (len(out_index), len(in_index)))
+        is_finish = False
+        out_index, in_index = ChooseSamples.split_by_threshold(machine_samples_list,
+                                                               self.lower_thres,
+                                                               self.upper_thres)
+        logger.debug("[check model can finish] out threshold samples:%d; in threshold samples:%d" % (
+            len(out_index), len(in_index)))
         p = 1 - (len(in_index) + 0.0) / len(self.samples)
-        logger.debug("[check model finish] p:%f; label_ratio:%f" % (p, self.label_ratio))
         if p >= self.label_ratio and self.get_labeled_sample_num() > self.label_min_num:
-            flag = True
-        return flag
+            is_finish = True
+        logger.debug("[check model can finish] is_finish:%s, p:%f; label_ratio:%f" % (is_finish, p, self.label_ratio))
+        return is_finish
 
     def _input_human_label(self, choose_sample):
+        is_stop = False
         for i, sample in enumerate(choose_sample):
-            print("batch id:%d" % i)
-            print(sample)
-            idx = sample.id
-
+            print("[batch] id:%d, sample:%s" % (i, sample))
             print("id_label:%s" % self.id_label)
             # 检测输入标签
             while True:
-                input_label_id = input("input label id:").strip()
+                input_label_id = input("input label id:").lower().strip()
+                if input_label_id in ['q', 'e', 's', 'quit', 'exit', 'stop']:
+                    is_stop = True
+                    return is_stop
                 if input_label_id.isdigit() and (int(input_label_id) in self.id_label):
                     break
             label = self.id_label[int(input_label_id)]
-            self.samples[idx].human_label = label
-            self.samples[idx].prob = 1.0
-            self.samples[idx].machine_label = ""
+            self.samples[sample.index].human_label = label
+            self.samples[sample.index].prob = 1.0
+            self.samples[sample.index].machine_label = ""
+        return is_stop
 
     def label(self):
         batch_id = 0
@@ -324,22 +321,28 @@ class LabelModel(object):
             labeled_sample_list, unlabeled_sample_list = self._split_labeled_unlabeled_samples()
             if batch_id == 0 and (not self._check_model_can_start(labeled_sample_list)):
                 choose_sample = ChooseSamples.choose_random(unlabeled_sample_list, self.batch_num)
-                self._input_human_label(choose_sample)
+                is_stop = self._input_human_label(choose_sample)
+                if is_stop:
+                    logger.warning('process stop.')
+                    exit(1)
             machine_samples_list = self._train(labeled_sample_list, unlabeled_sample_list, batch_id)
             if self._check_model_can_finish(machine_samples_list):
                 self._show_all_labels()
                 break
-            choose_sample = ChooseSamples.choose_label_data_random(machine_samples_list,
-                                                                   self.batch_num,
-                                                                   self.lower_thres,
-                                                                   self.upper_thres,
-                                                                   self.label_id)
-            self._input_human_label(choose_sample)
+            choose_sample = ChooseSamples.choose_label_data_random(
+                machine_samples_list,
+                self.batch_num,
+                self.lower_thres,
+                self.upper_thres,
+                self.label_id
+            )
+            is_stop = self._input_human_label(choose_sample)
             batch_id += 1
+            if is_stop:
+                logger.warning('process stop.')
+                exit(1)
 
 
 if __name__ == "__main__":
-    from labelit import config
-
     lm = LabelModel()
     lm.label()
