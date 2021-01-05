@@ -7,10 +7,10 @@ import os
 
 pwd_path = os.path.abspath(os.path.dirname(__file__))
 
-input_file_path = os.path.join(pwd_path, "../extra_data/bjp.txt")
-seg_input_file_path = os.path.join(pwd_path, "../extra_data/bjp_seg.txt")
+input_file_path = os.path.join(pwd_path, "../extra_data/samples.txt")
+seg_input_file_path = os.path.join(pwd_path, "../extra_data/samples_seg.txt")
 col_sep = '\t'  # separate label and content of train data
-num_classes = 3
+num_classes = 6
 
 # Active learning params
 output_dir = os.path.join(pwd_path, "../extra_data")  # Where to save outputs

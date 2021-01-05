@@ -193,8 +193,8 @@ class LabelModel(object):
             else:
                 unlabeled_sample_list.append(i)
         self.set_labeled_sample_num(len(labeled_sample_list))
-        logger.info(f"labeled size: {len(labeled_sample_list)}; unlabeled size: {len(unlabeled_sample_list)}")
         self.set_unlabeled_sample_num(len(unlabeled_sample_list))
+        logger.info(f"labeled size: {len(labeled_sample_list)}; unlabeled size: {len(unlabeled_sample_list)}")
         return labeled_sample_list, unlabeled_sample_list
 
     def _train(self, labeled_sample_list, unlabeled_sample_list, batch_id):
@@ -264,7 +264,9 @@ class LabelModel(object):
         :return: False, 不可以训练; True, 可以开始训练
         """
         human_labels = [i.human_label for i in labeled_samples_list]
-        assert len(set(human_labels)) == self.num_classes, "human label type need same as num classes."
+        human_label_size = len(set(human_labels))
+        logger.info(f'human label classes: {human_label_size}; num_classes: {self.num_classes}')
+        assert human_label_size == self.num_classes, "human label type need same as num classes."
         labeled_type_num = dict()
         for i in set(human_labels):
             count = 0
@@ -288,8 +290,8 @@ class LabelModel(object):
         out_index, in_index = ChooseSamples.split_by_threshold(machine_samples_list,
                                                                self.lower_thres,
                                                                self.upper_thres)
-        logger.debug("[check model can finish] out threshold samples:%d; in threshold samples:%d" % (
-            len(out_index), len(in_index)))
+        logger.debug("[check model can finish] out threshold samples:%d; in threshold samples:%d"
+                     % (len(out_index), len(in_index)))
         p = 1 - (len(in_index) + 0.0) / len(self.samples)
         if p >= self.label_ratio and self.get_labeled_sample_num() > self.label_min_num:
             is_finish = True
@@ -299,7 +301,7 @@ class LabelModel(object):
     def _input_human_label(self, choose_sample):
         is_stop = False
         for i, sample in enumerate(choose_sample):
-            print("[batch] id:%d, sample:%s" % (i, sample))
+            print("[batch] id:%d, [sample] %s" % (i, sample))
             print("id_label:%s" % self.id_label)
             # 检测输入标签
             while True:
