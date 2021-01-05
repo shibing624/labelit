@@ -18,7 +18,8 @@ class Feature(object):
     def __init__(
             self,
             data,
-            feature_type='tfidf_char',
+            feature_type='tfidf',
+            segment_type='char',
             feature_vec_path='',
             is_infer=False,
             word_vocab='',
@@ -28,6 +29,7 @@ class Feature(object):
     ):
         self.data_set = data
         self.feature_type = feature_type
+        self.segment_type = segment_type
         self.feature_vec_path = feature_vec_path
         self.sentence_symbol = load_list(sentence_symbol_path)
         self.stop_words = load_list(stop_words_path)
@@ -36,9 +38,9 @@ class Feature(object):
         self.max_len = max_len
 
     def get_feature(self):
-        if self.feature_type == 'tfidf_word':
+        if self.feature_type == 'tfidf' and self.segment_type == 'word':
             data_feature = self.tfidf_word_feature(self.data_set)
-        elif self.feature_type == 'tf_word':
+        elif self.feature_type == 'tf' and self.segment_type == 'word':
             data_feature = self.tf_word_feature(self.data_set)
         elif self.feature_type == 'vectorize':
             data_feature = self.vectorize(self.data_set)
@@ -71,7 +73,7 @@ class Feature(object):
             self.vectorizer = load_pkl(self.feature_vec_path)
             data_feature = self.vectorizer.transform(data_set)
         else:
-            self.vectorizer = TfidfVectorizer(analyzer='char', ngram_range=(1, 2), sublinear_tf=True)
+            self.vectorizer = TfidfVectorizer(analyzer='char', ngram_range=(1, 1), sublinear_tf=True, min_df=1)
             data_feature = self.vectorizer.fit_transform(data_set)
         vocab = self.vectorizer.vocabulary_
         logger.debug('Vocab size:%d' % len(vocab))

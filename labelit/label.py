@@ -68,6 +68,7 @@ class LabelModel(object):
             model_save_path=config.model_save_path,
             pred_save_path=config.pred_save_path,
             feature_type=config.feature_type,
+            segment_type = config.segment_type,
             model_type=config.model_type,
             num_classes=config.num_classes,
             col_sep=config.col_sep,
@@ -82,7 +83,7 @@ class LabelModel(object):
             stop_words_path=config.stop_words_path,
     ):
         self.input_file_path = input_file_path
-        self.seg_input_file_path = seg_input_file_path if seg_input_file_path else input_file_path + "_seg"
+        self.seg_input_file_path = seg_input_file_path
         self.sentence_symbol_path = sentence_symbol_path
         self.stop_words_path = stop_words_path
         self.word_vocab_path = word_vocab_path if word_vocab_path else "word_vocab.txt"
@@ -91,6 +92,7 @@ class LabelModel(object):
         self.model_save_path = model_save_path if model_save_path else "model.pkl"
         self.pred_save_path = pred_save_path if pred_save_path else "predict.txt"
         self.feature_type = feature_type
+        self.segment_type = segment_type
         self.num_classes = num_classes
         self.col_sep = col_sep
         self.min_count = min_count
@@ -102,7 +104,7 @@ class LabelModel(object):
         if not os.path.exists(self.seg_input_file_path):
             start_time = time()
             seg_data(self.input_file_path, self.seg_input_file_path, col_sep=self.col_sep,
-                     stop_words_path=self.stop_words_path)
+                     stop_words_path=self.stop_words_path, segment_type=segment_type)
             logger.info("spend time: %s s" % (time() - start_time))
         self.seg_contents, self.data_lbl = data_reader(self.seg_input_file_path, self.col_sep)
 
@@ -142,6 +144,7 @@ class LabelModel(object):
         logger.info(f"feature_type: {self.feature_type}\nseg_contents: \n{self.seg_contents[:2]}")
         feature = Feature(data=self.seg_contents,
                           feature_type=self.feature_type,
+                          segment_type=self.segment_type,
                           feature_vec_path=self.feature_vec_path,
                           word_vocab=word_vocab,
                           sentence_symbol_path=self.sentence_symbol_path,

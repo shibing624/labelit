@@ -8,7 +8,13 @@ import os
 pwd_path = os.path.abspath(os.path.dirname(__file__))
 
 input_file_path = os.path.join(pwd_path, "../extra_data/samples.txt")
-seg_input_file_path = os.path.join(pwd_path, "../extra_data/samples_seg.txt")
+
+# segment_type optionals: "word, char"
+segment_type = 'word'
+# feature_type optionals: "tfidf, tf"
+feature_type = 'tfidf'
+
+seg_input_file_path = os.path.join(pwd_path, "../extra_data/samples_seg_{}.txt".format(segment_type))
 col_sep = '\t'  # separate label and content of train data
 num_classes = 6
 
@@ -28,18 +34,18 @@ label_min_size = 0.2
 model_type = "logistic"
 sentence_symbol_path = os.path.join(pwd_path, "data/sentence_symbol.txt")
 stop_words_path = os.path.join(pwd_path, "data/stop_words.txt")
-
 min_count = 1  # word will not be added to dictionary if it's frequency is less than min_count
 
-# train type usage:  one of "tfidf_char, tfidf_word, tf_word",
-feature_type = 'tfidf_char'
-word_vocab_path = os.path.join(output_dir, "vocab_{}_{}.txt".format(feature_type, model_type))  # vocab path
-label_vocab_path = os.path.join(output_dir, "label_{}_{}.txt".format(feature_type, model_type))  # label path
-feature_vec_path = os.path.join(output_dir, "feature_{}.pkl".format(feature_type))  # feature vector path
-model_save_path = os.path.join(output_dir, "model_{}_{}.pkl".format(feature_type, model_type))  # save model path
-
+# vocab path
+word_vocab_path = os.path.join(output_dir, "vocab_{}_{}_{}.txt".format(feature_type, segment_type, model_type))
+# label path
+label_vocab_path = os.path.join(output_dir, "label_{}_{}_{}.txt".format(feature_type, segment_type, model_type))
+# feature vector path
+feature_vec_path = os.path.join(output_dir, "feature_{}_{}.pkl".format(feature_type, segment_type))
+# save model path
+model_save_path = os.path.join(output_dir, "model_{}_{}_{}.pkl".format(feature_type, segment_type, model_type))
 # predict result
-pred_save_path = os.path.join(output_dir, "pred_result_{}_{}.txt".format(feature_type, model_type))
+pred_save_path = os.path.join(output_dir, "pred_result_{}_{}_{}.txt".format(feature_type, segment_type, model_type))
 
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)

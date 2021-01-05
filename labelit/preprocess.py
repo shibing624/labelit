@@ -19,13 +19,14 @@ def read_stopwords(path):
     return lines
 
 
-def seg_data(in_file, out_file, col_sep='\t', stop_words_path=''):
+def seg_data(in_file, out_file, col_sep='\t', stop_words_path='', segment_type='word'):
     """
     预处理（切词，去除停用词）
     :param in_file:
     :param out_file:
     :param col_sep:
     :param stop_words_path:
+    :param segment_type: char/word
     :return:
     """
     stopwords = read_stopwords(stop_words_path)
@@ -38,13 +39,16 @@ def seg_data(in_file, out_file, col_sep='\t', stop_words_path=''):
                 continue
             label = parts[0].strip()
             data = ' '.join(parts[1:])
-            seg_list = jieba.lcut(data)
-            seg_words = []
-            for i in seg_list:
-                if i in stopwords:
-                    continue
-                seg_words.append(i)
-            seg_line = ' '.join(seg_words)
+            if segment_type == 'word':
+                seg_list = jieba.lcut(data)
+                seg_words = []
+                for i in seg_list:
+                    if i in stopwords:
+                        continue
+                    seg_words.append(i)
+                seg_line = ' '.join(seg_words)
+            else:
+                seg_line = ' '.join(list(data))
             if count % 10000 == 0:
                 logger.debug('count:%d' % count)
                 logger.debug(line)
@@ -58,5 +62,5 @@ def seg_data(in_file, out_file, col_sep='\t', stop_words_path=''):
 if __name__ == '__main__':
     start_time = time()
     seg_data(config.input_file_path, config.seg_input_file_path, col_sep=config.col_sep,
-             stop_words_path=config.stop_words_path)
+             stop_words_path=config.stop_words_path, segment_type='word')
     print("spend time: %s s" % (time() - start_time))
