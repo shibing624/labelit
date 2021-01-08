@@ -18,18 +18,18 @@ seg_input_file_path = os.path.join(pwd_path, "../extra_data/samples_seg_{}.txt".
 col_sep = '\t'  # separate label and content of train data
 num_classes = 6
 
-# Active learning params
-output_dir = os.path.join(pwd_path, "../extra_data")  # Where to save outputs
-sampling_method = "margin"  # Name of sampling method to use, can be any defined in AL_MAPPING in sampler.constants
-warmstart_size = 20  # Float indicates percentage of training data to use in the initial warmstart model
-batch_size = 6  # Can be float or integer.  Float indicates batch size as a percentage of training data size.
-score_method = "logistic"  # Method to use to calculate accuracy.
+# active learning params
+output_dir = os.path.join(pwd_path, "../extra_data")  # where to save outputs
+sampling_method = "margin"  # name of sampling method to use, can be any defined in AL_MAPPING in sampler.constants
+warmstart_size = 20  # float indicates percentage of training data to use in the initial warmstart model
+batch_size = 5  # can be float or integer.  Float indicates batch size as a percentage of training data size.
+score_method = "logistic"  # method to use to calculate accuracy.
 
-upper_thres = 0.9
-lower_thres = 0.6
+upper_thres = 0.9  # upper threshold of label
+lower_thres = 0.3  # lower threshold of label
 
-label_ratio = 0.9
-label_min_size = 0.2
+label_confidence_threshold = 0.9  # label min confidence threshold
+label_min_size = 0.2  # num of labeled sample, for finish mark process
 
 model_type = "logistic"
 sentence_symbol_path = os.path.join(pwd_path, "data/sentence_symbol.txt")

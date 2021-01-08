@@ -7,8 +7,11 @@
 import os
 from time import time
 
+import cleanlab
 import numpy as np
+from cleanlab.pruning import get_noise_indices
 from scipy.sparse import csr_matrix
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 
 from labelit import config
@@ -28,8 +31,7 @@ class DataObject(object):
             self,
             index=0,
             original_text="",
-            seg_text_word="",
-            seg_text_char="",
+            segment_text="",
             human_label="",
             machine_label="",
             prob=0.0,
@@ -39,8 +41,7 @@ class DataObject(object):
     ):
         self.index = index  # index值
         self.original_text = original_text  # 原物料,未切词
-        self.seg_text_word = seg_text_word  # 切词结果
-        self.seg_text_char = seg_text_char  # 切字结果
+        self.segment_text = segment_text  # 切词结果(切词/切字)
         self.human_label = human_label  # 人工标注结果
         self.machine_label = machine_label  # 机器预测标签
         self.prob = prob  # 预测标签的概率
@@ -49,8 +50,8 @@ class DataObject(object):
         self.need_label = need_label  # 是否需要标注
 
     def __repr__(self):
-        return "index: %s, label: %s, prob: %f, original_text: %s" % (
-            self.index, self.machine_label, self.prob, self.original_text)
+        return "index: %s, human_label: %s, machine_label: %s, prob: %f, original_text: %s" % (
+            self.index, self.human_label, self.machine_label, self.prob, self.original_text)
 
 
 class LabelModel(object):
@@ -68,14 +69,14 @@ class LabelModel(object):
             model_save_path=config.model_save_path,
             pred_save_path=config.pred_save_path,
             feature_type=config.feature_type,
-            segment_type = config.segment_type,
+            segment_type=config.segment_type,
             model_type=config.model_type,
             num_classes=config.num_classes,
             col_sep=config.col_sep,
             min_count=config.min_count,
             lower_thres=config.lower_thres,
             upper_thres=config.upper_thres,
-            label_ratio=config.label_ratio,
+            label_confidence_threshold=config.label_confidence_threshold,
             label_min_size=config.label_min_size,
             batch_size=config.batch_size,
             warmstart_size=config.warmstart_size,
@@ -98,7 +99,7 @@ class LabelModel(object):
         self.min_count = min_count
         self.lower_thres = lower_thres
         self.upper_thres = upper_thres
-        self.label_ratio = label_ratio
+        self.label_confidence_threshold = label_confidence_threshold
 
         # 1. load segment data
         if not os.path.exists(self.seg_input_file_path):
@@ -138,17 +139,20 @@ class LabelModel(object):
 
         # 5. init model
         self.model = get_model(model_type)
+        self.model_trained = False
 
     def _get_feature(self, word_vocab):
         # 提取特征
         logger.info(f"feature_type: {self.feature_type}\nseg_contents: \n{self.seg_contents[:2]}")
-        feature = Feature(data=self.seg_contents,
-                          feature_type=self.feature_type,
-                          segment_type=self.segment_type,
-                          feature_vec_path=self.feature_vec_path,
-                          word_vocab=word_vocab,
-                          sentence_symbol_path=self.sentence_symbol_path,
-                          stop_words_path=self.stop_words_path)
+        feature = Feature(
+            data=self.seg_contents,
+            feature_type=self.feature_type,
+            segment_type=self.segment_type,
+            feature_vec_path=self.feature_vec_path,
+            word_vocab=word_vocab,
+            sentence_symbol_path=self.sentence_symbol_path,
+            stop_words_path=self.stop_words_path
+        )
         # get data feature
         return feature.get_feature()
 
@@ -157,7 +161,7 @@ class LabelModel(object):
         for i, text in enumerate(self.content):
             human_label = self.data_lbl[i] if i < len(self.data_lbl) else ""
             prob = 1.0 if human_label else 0.0
-            sample = DataObject(i, text, seg_text_word=self.seg_contents[i], seg_text_char=' '.join(list(text)),
+            sample = DataObject(i, text, segment_text=self.seg_contents[i],
                                 human_label=human_label, prob=prob, feature=data_feature[i])
             samples.append(sample)
         return samples
@@ -200,8 +204,26 @@ class LabelModel(object):
         logger.info(f"labeled size: {len(labeled_sample_list)}; unlabeled size: {len(unlabeled_sample_list)}")
         return labeled_sample_list, unlabeled_sample_list
 
-    def _train(self, labeled_sample_list, unlabeled_sample_list, batch_id):
-        machine_samples_list = []
+    def find_noise(self, labeled_sample_list):
+        # get data feature
+        labeled_data_label = [i.human_label for i in labeled_sample_list if i.human_label]
+        labeled_data_feature = [i.feature.toarray().tolist()[0] for i in labeled_sample_list]
+        # find noise(maybe error index)
+        s = np.array([self.label_id[i] for i in labeled_data_label])
+        X = np.array(labeled_data_feature)
+        psx = cleanlab.latent_estimation.estimate_cv_predicted_probabilities(
+            X, s, clf=LogisticRegression(max_iter=1000, multi_class='auto', solver='lbfgs'))
+        ordered_label_errors = get_noise_indices(
+            s=s,
+            psx=psx,
+            sorted_index_method='normalized_margin',  # Orders label errors
+        )
+        logger.debug('[find_noise] ordered_label_errors index: {}, size: {}'.format(ordered_label_errors,
+                                                                                    len(ordered_label_errors)))
+        noise_samples = [labeled_sample_list[i] for i in ordered_label_errors]
+        return noise_samples
+
+    def _train(self, labeled_sample_list):
         # get data feature
         labeled_data_label = [i.human_label if i.human_label else i.machine_label for i in labeled_sample_list]
         labeled_data_feature = [i.feature.toarray().tolist()[0] for i in labeled_sample_list]
@@ -209,11 +231,16 @@ class LabelModel(object):
                                                           labeled_data_label)
         # fit
         self.model.fit(X_train, y_train)
-
+        self.model_trained = True
         # save model
         dump_pkl(self.model, self.model_save_path, overwrite=True)
+        # evaluate model
         eval(self.model, X_val, y_val)
 
+    def _predict_unlabeled_data(self, unlabeled_sample_list, batch_id):
+        if not self.model_trained:
+            raise RuntimeError("model not fit.")
+        machine_samples_list = []
         # 预测未标注数据集
         unlabeled_data_feature = [i.feature.toarray().tolist()[0] for i in unlabeled_sample_list]
         if not unlabeled_sample_list:
@@ -235,7 +262,10 @@ class LabelModel(object):
             machine_samples_list.append(unlabeled_sample)
         return machine_samples_list
 
-    def _show_all_labels(self):
+    def _save_best_model(self):
+        """
+        保存最佳模型，使用所有数据再次训练模型
+        """
         # split labeled data and unlabeled data
         output = []
         contents = []
@@ -245,7 +275,7 @@ class LabelModel(object):
         for i in self.samples:
             label = i.human_label if i.human_label else i.machine_label
             output.append(label + self.col_sep + str(i.prob))
-            seg_contents.append(i.seg_text_word)
+            seg_contents.append(i.segment_text)
             contents.append(i.original_text)
             labels.append(label)
             features.append(i.feature.toarray().tolist()[0])
@@ -268,7 +298,7 @@ class LabelModel(object):
         """
         human_labels = [i.human_label for i in labeled_samples_list]
         human_label_size = len(set(human_labels))
-        logger.info(f'human label classes: {human_label_size}; num_classes: {self.num_classes}')
+        logger.info(f'human label classes: {human_label_size}; set num_classes: {self.num_classes}')
         assert human_label_size == self.num_classes, "human label type need same as num classes."
         labeled_type_num = dict()
         for i in set(human_labels):
@@ -290,19 +320,19 @@ class LabelModel(object):
         :return: False, 需要继续迭代; True, 可以结束
         """
         is_finish = False
-        out_index, in_index = ChooseSamples.split_by_threshold(machine_samples_list,
-                                                               self.lower_thres,
-                                                               self.upper_thres)
-        logger.debug("[check model can finish] out threshold samples:%d; in threshold samples:%d"
-                     % (len(out_index), len(in_index)))
-        p = 1 - (len(in_index) + 0.0) / len(self.samples)
-        if p >= self.label_ratio and self.get_labeled_sample_num() > self.label_min_num:
+        trusted_index, untrusted_index = ChooseSamples.split_by_threshold(machine_samples_list,
+                                                                          self.lower_thres,
+                                                                          self.upper_thres)
+        logger.debug("[check model can finish] trusted_index samples:%d; untrusted_index samples:%d"
+                     % (len(trusted_index), len(untrusted_index)))
+        p = 1 - (len(untrusted_index) + 0.0) / len(self.samples)
+        if p >= self.label_confidence_threshold and self.get_labeled_sample_num() > self.label_min_num:
             is_finish = True
-        logger.debug("[check model can finish] is_finish:%s, p:%f; label_ratio:%f" % (is_finish, p, self.label_ratio))
+        logger.debug("[check model can finish] is_finish:%s, trusted label rate:%f; label_confidence_threshold:%f"
+                     % (is_finish, p, self.label_confidence_threshold))
         return is_finish
 
     def _input_human_label(self, choose_sample):
-        is_stop = False
         for i, sample in enumerate(choose_sample):
             print("[batch] id:%d, [sample] %s" % (i, sample))
             print("id_label:%s" % self.id_label)
@@ -310,29 +340,41 @@ class LabelModel(object):
             while True:
                 input_label_id = input("input label id:").lower().strip()
                 if input_label_id in ['q', 'e', 's', 'quit', 'exit', 'stop']:
-                    is_stop = True
-                    return is_stop
+                    logger.warning('process stop.')
+                    exit(1)
                 if input_label_id.isdigit() and (int(input_label_id) in self.id_label):
                     break
             label = self.id_label[int(input_label_id)]
+            # set human label for sample
             self.samples[sample.index].human_label = label
             self.samples[sample.index].prob = 1.0
             self.samples[sample.index].machine_label = ""
-        return is_stop
 
     def label(self):
         batch_id = 0
         while True:
             labeled_sample_list, unlabeled_sample_list = self._split_labeled_unlabeled_samples()
-            if batch_id == 0 and (not self._check_model_can_start(labeled_sample_list)):
-                choose_sample = ChooseSamples.choose_random(unlabeled_sample_list, self.batch_num)
-                is_stop = self._input_human_label(choose_sample)
-                if is_stop:
-                    logger.warning('process stop.')
-                    exit(1)
-            machine_samples_list = self._train(labeled_sample_list, unlabeled_sample_list, batch_id)
+            # 启动自动标注
+            if batch_id == 0:
+                if not self._check_model_can_start(labeled_sample_list):
+                    # 训练模型的启动标注样本量不足，随机抽样补充标注样本
+                    choose_sample = ChooseSamples.choose_random(unlabeled_sample_list, self.batch_num)
+                    self._input_human_label(choose_sample)
+                else:
+                    # train and evaluate model first
+                    self._train(labeled_sample_list)
+                    # 启动样本量足够，检测噪声数据再次标注（精标）
+                    noise_samples = self.find_noise(labeled_sample_list)
+                    self._input_human_label(noise_samples)
+
+            # train and evaluate model after delete noise
+            self._train(labeled_sample_list)
+            # predict unlabeled data
+            machine_samples_list = self._predict_unlabeled_data(unlabeled_sample_list, batch_id)
             if self._check_model_can_finish(machine_samples_list):
-                self._show_all_labels()
+                noise_samples = self.find_noise(labeled_sample_list)
+                self._input_human_label(noise_samples)
+                self._save_best_model()
                 break
             choose_sample = ChooseSamples.choose_label_data_random(
                 machine_samples_list,
@@ -341,11 +383,8 @@ class LabelModel(object):
                 self.upper_thres,
                 self.label_id
             )
-            is_stop = self._input_human_label(choose_sample)
+            self._input_human_label(choose_sample)
             batch_id += 1
-            if is_stop:
-                logger.warning('process stop.')
-                exit(1)
 
 
 if __name__ == "__main__":

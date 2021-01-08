@@ -70,7 +70,7 @@ def simple_evaluate(right_labels, pred_labels, ignore_label=None):
 def eval(model, test_data, test_label, pred_save_path=None):
     logger.info('{0}, val mean acc:{1}'.format(model.__str__(), model.score(test_data, test_label)))
     label_pred = model.predict(test_data)
-    logger.info(classification_report(test_label, label_pred))
+    logger.info('\n%s' % classification_report(test_label, label_pred))
     if pred_save_path:
         with open(pred_save_path, 'w', encoding='utf-8') as f:
             for i in label_pred:

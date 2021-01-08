@@ -64,7 +64,7 @@ class ChooseSamples(object):
             count += 1
             for i in selected_data:
                 choose_sample.append(i)
-        logger.info("choose_sample size：%d, label size: %d" % (len(choose_sample), count))
+        logger.info("choose_sample size：%d, num_classes: %d" % (len(choose_sample), count))
         return choose_sample
 
     @staticmethod
@@ -97,17 +97,17 @@ class ChooseSamples(object):
         [INPUT]  machine_samples_list: 机器识别结果
                  lower_thres:          配置阈值下界
                  upper_thres:          配置阈值上界
-        [OUTPUT] out_index:            机器识别阈值外的index
-                 in_index:             机器识别阈值内的index
+        [OUTPUT] trusted_index:        机器识别高置信度的index
+                 untrusted_index:      机器识别低置信度的index
         """
-        out_index = []
-        in_index = []
+        trusted_index = []
+        untrusted_index = []
         for s in machine_samples_list:
             if s.prob <= lower_thres or s.prob >= upper_thres:
-                out_index.append(s)
+                trusted_index.append(s)
             else:
-                in_index.append(s)
-        return out_index, in_index
+                untrusted_index.append(s)
+        return trusted_index, untrusted_index
 
     @staticmethod
     def choose_label_data_by_rule(machine_samples_list, rule_samples, human_rules, batch_num,
@@ -127,10 +127,10 @@ class ChooseSamples(object):
         # 规则部分
         rule_num = int(math.ceil(rule_prop * batch_num))
         rule_index = ChooseSamples.index_by_rule(human_rules, rule_samples, rule_num)
-        out_index, in_index = ChooseSamples.split_by_threshold(machine_samples_list, lower_thres, upper_thres)
+        trusted_index, untrusted_index = ChooseSamples.split_by_threshold(machine_samples_list, lower_thres, upper_thres)
         # 阈值外和阈值内部分
-        o_index = set(out_index) - set(rule_index)
-        i_index = set(in_index) - set(rule_index)
+        o_index = set(trusted_index) - set(rule_index)
+        i_index = set(untrusted_index) - set(rule_index)
         out_thres_index = list(o_index) if rule_num > len(o_index) else \
             random.sample(o_index, rule_num)
         n = batch_num - len(rule_index) - len(out_thres_index)
