@@ -4,8 +4,6 @@
 from codecs import open
 from time import time
 
-import jieba
-
 from labelit import config
 from labelit.utils.logger import logger
 
@@ -40,6 +38,7 @@ def seg_data(in_file, out_file, col_sep='\t', stop_words_path='', segment_type='
             label = parts[0].strip()
             data = ' '.join(parts[1:])
             if segment_type == 'word':
+                import jieba
                 seg_list = jieba.lcut(data)
                 seg_words = []
                 for i in seg_list:
