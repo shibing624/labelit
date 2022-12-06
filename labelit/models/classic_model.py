@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
-# Author: XuMing <xuming624@qq.com>
-# Brief:
+"""
+@author:XuMing(xuming624@qq.com)
+@description:
+"""
 
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
@@ -12,8 +14,8 @@ from sklearn.tree import DecisionTreeClassifier
 
 
 def get_model(model_type):
-    if model_type == "logistic":
-        model = LogisticRegression()  # 快，准确率一般。val mean acc:0.91
+    if model_type in ["logistic", "lr"]:
+        model = LogisticRegression(max_iter=1000, multi_class='auto', solver='lbfgs')  # 快，准确率一般。val mean acc:0.91
     elif model_type == "random_forest":
         model = RandomForestClassifier(n_estimators=300)  # 速度还行，准确率一般。val mean acc:0.93125
     elif model_type == "decision_tree":
@@ -31,7 +33,7 @@ def get_model(model_type):
         model = MLPClassifier()  # 速度一般，准确率一般。val mean acc:0.89125
     elif model_type == 'ensemble':
         from mlxtend.classifier import EnsembleVoteClassifier
-        clf1 = LogisticRegression(random_state=0)
+        clf1 = LogisticRegression(max_iter=1000, multi_class='auto', solver='lbfgs', random_state=0)
         clf2 = XGBClassifier(random_state=0)
         clf3 = SVC(random_state=0, kernel='linear', probability=True)
         clf4 = MLPClassifier(random_state=0)
@@ -48,5 +50,5 @@ def get_model(model_type):
                                    average_probas=False,
                                    meta_classifier=lr)
     else:
-        model = LogisticRegression()
+        model = LogisticRegression(max_iter=1000, multi_class='auto', solver='lbfgs')
     return model

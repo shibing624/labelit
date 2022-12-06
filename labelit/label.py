@@ -9,20 +9,27 @@ from time import time
 
 import cleanlab
 import numpy as np
-from cleanlab.count import compute_confident_joint, estimate_cv_predicted_probabilities
-from cleanlab.filter import find_label_issues
 from cleanlab.classification import CleanLearning
 from scipy.sparse import csr_matrix
-from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from loguru import logger
-from labelit import config
 from labelit.active_learning.choose_samples import ChooseSamples
 from labelit.models.classic_model import get_model
 from labelit.models.evaluate import eval
 from labelit.models.feature import Feature
-from labelit.preprocess import seg_data
-from labelit.utils.data_utils import dump_pkl, write_vocab, build_vocab, load_vocab, data_reader, save
+from labelit.utils.data_utils import (
+    dump_pkl,
+    write_vocab,
+    build_vocab,
+    load_vocab,
+    data_reader,
+    save_predict_result,
+    seg_data,
+)
+
+pwd_path = os.path.abspath(os.path.dirname(__file__))
+default_sentence_symbol_path = os.path.join(pwd_path, "data/sentence_symbol.txt")
+default_stop_words_path = os.path.join(pwd_path, "data/stop_words.txt")
 
 
 class DataObject(object):
@@ -42,7 +49,7 @@ class DataObject(object):
     ):
         self.index = index  # index值
         self.original_text = original_text  # 原物料,未切词
-        self.segment_text = segment_text  # 切词结果(切词/切字)
+        self.segment_text = segment_text  # 切词结果
         self.human_label = human_label  # 人工标注结果
         self.machine_label = machine_label  # 机器预测标签
         self.prob = prob  # 预测标签的概率
@@ -51,7 +58,7 @@ class DataObject(object):
         self.need_label = need_label  # 是否需要标注
 
     def __repr__(self):
-        return "index: %s, human_label: %s, machine_label: %s, prob: %f, original_text: %s" % (
+        return "index:%s, human_label:%s, machine_label:%s, prob:%f, original_text:%s" % (
             self.index, self.human_label, self.machine_label, self.prob, self.original_text)
 
 
@@ -62,37 +69,62 @@ class LabelModel(object):
 
     def __init__(
             self,
-            input_file_path=config.input_file_path,
-            seg_input_file_path=config.seg_input_file_path,
-            word_vocab_path=config.word_vocab_path,
-            label_vocab_path=config.label_vocab_path,
-            feature_vec_path=config.feature_vec_path,
-            model_save_path=config.model_save_path,
-            pred_save_path=config.pred_save_path,
-            feature_type=config.feature_type,
-            segment_type=config.segment_type,
-            model_type=config.model_type,
-            num_classes=config.num_classes,
-            col_sep=config.col_sep,
-            min_count=config.min_count,
-            lower_thres=config.lower_thres,
-            upper_thres=config.upper_thres,
-            label_confidence_threshold=config.label_confidence_threshold,
-            label_min_size=config.label_min_size,
-            batch_size=config.batch_size,
-            warmstart_size=config.warmstart_size,
-            sentence_symbol_path=config.sentence_symbol_path,
-            stop_words_path=config.stop_words_path,
+            input_file_path,
+            model_dir='outputs/',
+            feature_type='tfidf',
+            segment_type='word',
+            model_type='lr',
+            cl_model_type='lr',
+            num_classes=2,
+            col_sep='\t',
+            min_count=1,
+            lower_thres=0.3,
+            upper_thres=0.9,
+            label_confidence_threshold=0.9,
+            label_min_size=0.2,
+            batch_size=5,
+            warmstart_size=20,
+            sentence_symbol_path=None,
+            stop_words_path=None,
     ):
-        self.input_file_path = input_file_path
-        self.seg_input_file_path = seg_input_file_path
-        self.sentence_symbol_path = sentence_symbol_path
-        self.stop_words_path = stop_words_path
-        self.word_vocab_path = word_vocab_path if word_vocab_path else "word_vocab.txt"
-        self.label_vocab_path = label_vocab_path if label_vocab_path else "label_vocab.txt"
-        self.feature_vec_path = feature_vec_path if feature_vec_path else "feature_vec.pkl"
-        self.model_save_path = model_save_path if model_save_path else "model.pkl"
-        self.pred_save_path = pred_save_path if pred_save_path else "predict.txt"
+        """
+        :param input_file_path: input file path, label \t content
+        :param model_dir: model dir
+        :param feature_type: feature type, tfidf or tf or vectorize
+        :param segment_type: segment type, word or char
+        :param model_type: model type, lr or svm or random_forest
+        :param cl_model_type: cleanlab model type, lr or svm or random_forest
+        :param num_classes: num of classes
+        :param col_sep: column separator, default \t
+        :param min_count: word will not be added to dictionary if it's frequency is less than min_count
+        :param lower_thres: lower threshold of label
+        :param upper_thres: upper threshold of label
+        :param label_confidence_threshold: label min confidence threshold
+        :param label_min_size: num of labeled sample, for finish mark process
+        :param batch_size: can be float or integer.  Float indicates batch size as a percentage of training data size.
+        :param warmstart_size: float indicates percentage of training data to use in the initial warmstart model
+        :param sentence_symbol_path: sentence symbol path
+        :param stop_words_path: stop words path
+        """
+        if not os.path.exists(model_dir):
+            os.makedirs(model_dir)
+        self.seg_input_file_path = os.path.join(model_dir, "seg_{}".format(input_file_path.split("/")[-1]))
+        # vocab path
+        self.word_vocab_path = os.path.join(model_dir,
+                                            "vocab_{}_{}_{}.txt".format(feature_type, segment_type, model_type))
+        # label path
+        self.label_vocab_path = os.path.join(model_dir,
+                                             "label_{}_{}_{}.txt".format(feature_type, segment_type, model_type))
+        # feature vector path
+        self.feature_vec_path = os.path.join(model_dir, "feature_{}_{}.pkl".format(feature_type, segment_type))
+        # save model path
+        self.model_save_path = os.path.join(model_dir,
+                                            "model_{}_{}_{}.pkl".format(feature_type, segment_type, model_type))
+        # predict result
+        self.pred_save_path = os.path.join(model_dir,
+                                           "pred_result_{}_{}_{}.txt".format(feature_type, segment_type, model_type))
+        self.sentence_symbol_path = sentence_symbol_path if sentence_symbol_path else default_sentence_symbol_path
+        self.stop_words_path = stop_words_path if stop_words_path else default_stop_words_path
         self.feature_type = feature_type
         self.segment_type = segment_type
         self.num_classes = num_classes
@@ -101,18 +133,17 @@ class LabelModel(object):
         self.lower_thres = lower_thres
         self.upper_thres = upper_thres
         self.label_confidence_threshold = label_confidence_threshold
-        self.cl = CleanLearning(clf=LogisticRegression(max_iter=1000, multi_class='auto', solver='lbfgs'), verbose=True)
 
         # 1. load segment data
         if not os.path.exists(self.seg_input_file_path):
             start_time = time()
-            seg_data(self.input_file_path, self.seg_input_file_path, col_sep=self.col_sep,
+            seg_data(input_file_path, self.seg_input_file_path, col_sep=self.col_sep,
                      stop_words_path=self.stop_words_path, segment_type=segment_type)
             logger.info("spend time: %s s" % (time() - start_time))
         self.seg_contents, self.data_lbl = data_reader(self.seg_input_file_path, self.col_sep)
 
         # 2. load original data
-        self.content, _ = data_reader(self.input_file_path, self.col_sep)
+        self.content, _ = data_reader(input_file_path, self.col_sep)
 
         # 3. load feature
         word_lst = []
@@ -141,6 +172,7 @@ class LabelModel(object):
 
         # 5. init model
         self.model = get_model(model_type)
+        self.cl = CleanLearning(clf=get_model(cl_model_type), verbose=True)
         self.model_trained = False
 
     def _get_feature(self, word_vocab):
@@ -167,12 +199,6 @@ class LabelModel(object):
                                 human_label=human_label, prob=prob, feature=data_feature[i])
             samples.append(sample)
         return samples
-
-    def set_feature_id(self, feature_id):
-        self.feature_id = feature_id
-
-    def get_feature_id(self):
-        return self.feature_id
 
     def set_label_id(self, label_id):
         self.label_id = label_id
@@ -274,7 +300,7 @@ class LabelModel(object):
         pred_save_path = self.pred_save_path[:-4] + '_batch_' + str(batch_id) + '.txt'
         logger.debug("save infer label and prob result to: %s" % pred_save_path)
         unlabeled_data_text = [i.original_text for i in unlabeled_sample_list]
-        save(pred_output, ture_labels=None, pred_save_path=pred_save_path, data_set=unlabeled_data_text)
+        save_predict_result(pred_output, ture_labels=None, pred_save_path=pred_save_path, data_set=unlabeled_data_text)
 
         assert len(unlabeled_sample_list) == len(pred_label_proba)
         for unlabeled_sample, label_prob in zip(unlabeled_sample_list, pred_label_proba):
@@ -309,7 +335,7 @@ class LabelModel(object):
         # save model
         dump_pkl(self.model, self.model_save_path, overwrite=True)
         eval(self.model, X_val, y_val)
-        save(output, ture_labels=None, pred_save_path=self.pred_save_path, data_set=contents)
+        save_predict_result(output, ture_labels=None, pred_save_path=self.pred_save_path, data_set=contents)
 
     def _check_model_can_start(self, labeled_samples_list):
         """
