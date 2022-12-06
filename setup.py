@@ -47,5 +47,5 @@ setup(
     ],
     packages=find_packages(exclude=['tests']),
     package_dir={'labelit': 'labelit'},
-    package_data={'labelit': ['*.*']}
+    package_data={'labelit': ['*.*', 'data/*']}
 )
