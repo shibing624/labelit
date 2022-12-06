@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 # Author: XuMing(xuming624@qq.com)
 # Brief: 
-from __future__ import print_function
-
 import sys
 
 from setuptools import setup, find_packages
@@ -15,12 +13,6 @@ if sys.version_info < (3,):
 
 with open('README.md', 'r', encoding='utf-8') as f:
     readme = f.read()
-
-with open('LICENSE', 'r', encoding='utf-8') as f:
-    license = f.read()
-
-with open('requirements.txt', 'r', encoding='utf-8') as f:
-    reqs = f.read()
 
 setup(
     name='labelit',
@@ -41,17 +33,19 @@ setup(
         'Natural Language :: Chinese (Traditional)',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.5',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
         'Topic :: Text Processing :: Linguistic',
         'Topic :: Scientific/Engineering :: Artificial Intelligence',
     ],
     platforms=["Windows", "Linux", "Solaris", "Mac OS-X", "Unix"],
     keywords='labelit,active learning,label text,label image',
-    install_requires=reqs.strip().split('\n'),
+    install_requires=[
+        'jieba',
+        'loguru',
+        'cleanlab',
+        'pandas',
+        'scipy',
+    ],
     packages=find_packages(exclude=['tests']),
     package_dir={'labelit': 'labelit'},
-    package_data={'labelit': ['*.*', '../LICENSE', '../README.*', '../*.txt', 'data/*', ]}
+    package_data={'labelit': ['*.*']}
 )
