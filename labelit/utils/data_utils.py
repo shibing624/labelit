@@ -5,8 +5,7 @@ import os
 import pickle
 from codecs import open
 from collections import defaultdict
-
-from .logger import logger
+from loguru import logger
 
 
 def build_vocab(items, sort=True, min_count=0, lower=False):

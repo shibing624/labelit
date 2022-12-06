@@ -5,9 +5,8 @@
 from sklearn import preprocessing
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.feature_selection import SelectKBest, chi2
-
+from loguru import logger
 from labelit.utils.data_utils import dump_pkl, load_pkl, get_char_segment_data, load_list
-from labelit.utils.logger import logger
 
 
 class Feature(object):

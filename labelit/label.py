@@ -9,11 +9,13 @@ from time import time
 
 import cleanlab
 import numpy as np
-from cleanlab.pruning import get_noise_indices
+from cleanlab.count import compute_confident_joint, estimate_cv_predicted_probabilities
+from cleanlab.filter import find_label_issues
+from cleanlab.classification import CleanLearning
 from scipy.sparse import csr_matrix
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
-
+from loguru import logger
 from labelit import config
 from labelit.active_learning.choose_samples import ChooseSamples
 from labelit.models.classic_model import get_model
@@ -21,7 +23,6 @@ from labelit.models.evaluate import eval
 from labelit.models.feature import Feature
 from labelit.preprocess import seg_data
 from labelit.utils.data_utils import dump_pkl, write_vocab, build_vocab, load_vocab, data_reader, save
-from labelit.utils.logger import logger
 
 
 class DataObject(object):
@@ -100,6 +101,7 @@ class LabelModel(object):
         self.lower_thres = lower_thres
         self.upper_thres = upper_thres
         self.label_confidence_threshold = label_confidence_threshold
+        self.cl = CleanLearning(clf=LogisticRegression(max_iter=1000, multi_class='auto', solver='lbfgs'), verbose=True)
 
         # 1. load segment data
         if not os.path.exists(self.seg_input_file_path):
@@ -204,24 +206,43 @@ class LabelModel(object):
         logger.info(f"labeled size: {len(labeled_sample_list)}; unlabeled size: {len(unlabeled_sample_list)}")
         return labeled_sample_list, unlabeled_sample_list
 
-    def find_noise(self, labeled_sample_list):
-        # get data feature
+    def _split_labels_and_text(self, labeled_sample_list):
         labeled_data_label = [i.human_label for i in labeled_sample_list if i.human_label]
         labeled_data_feature = [i.feature.toarray().tolist()[0] for i in labeled_sample_list]
-        # find noise(maybe error index)
-        s = np.array([self.label_id[i] for i in labeled_data_label])
         X = np.array(labeled_data_feature)
-        psx = cleanlab.latent_estimation.estimate_cv_predicted_probabilities(
-            X, s, clf=LogisticRegression(max_iter=1000, multi_class='auto', solver='lbfgs'))
-        ordered_label_errors = get_noise_indices(
-            s=s,
-            psx=psx,
-            sorted_index_method='normalized_margin',  # Orders label errors
-        )
-        logger.debug('[find_noise] ordered_label_errors index: {}, size: {}'.format(ordered_label_errors,
-                                                                                    len(ordered_label_errors)))
-        noise_samples = [labeled_sample_list[i] for i in ordered_label_errors]
-        return noise_samples
+        labels = np.array([self.label_id[i] for i in labeled_data_label])
+        return X, labels
+
+    def _find_noise(self, labeled_sample_list):
+        # find noise
+        X, labels = self._split_labels_and_text(labeled_sample_list)
+        # 找出问题样本
+        label_issues_df = self.cl.find_label_issues(X, labels=labels)
+        ordered_label_errors = label_issues_df["is_label_issue"].values
+        logger.debug('[find_noise] ordered_label_errors index: {}, size: {}'.format(
+            label_issues_df, len(label_issues_df)))
+        noise_samples = [labeled_sample_list[i] for i, issue in enumerate(ordered_label_errors) if issue]
+        return noise_samples, label_issues_df
+
+    def find_noise(self):
+        """
+        找出噪声数据
+        """
+        labeled_sample_list, unlabeled_sample_list = self._split_labeled_unlabeled_samples()
+        self._train(labeled_sample_list)
+        return self._find_noise(labeled_sample_list)
+
+    def train_with_no_noise(self):
+        labeled_sample_list, unlabeled_sample_list = self._split_labeled_unlabeled_samples()
+        X, labels = self._split_labels_and_text(labeled_sample_list)
+        X_train, X_val, y_train, y_val = train_test_split(csr_matrix(X), labels)
+        # cleanlab trains a robust version of your model that works more reliably with noisy data.
+        self.cl.fit(X_train, y_train)
+
+        eval(self.cl, X_val, y_val)
+
+        # A true data-centric AI package, cleanlab quantifies class-level issues and overall data quality, for any dataset.
+        cleanlab.dataset.health_summary(labels, confident_joint=self.cl.confident_joint, verbose=True)
 
     def _train(self, labeled_sample_list):
         # get data feature
@@ -350,7 +371,7 @@ class LabelModel(object):
             self.samples[sample.index].prob = 1.0
             self.samples[sample.index].machine_label = ""
 
-    def label(self):
+    def start_label(self):
         batch_id = 0
         while True:
             labeled_sample_list, unlabeled_sample_list = self._split_labeled_unlabeled_samples()
@@ -364,7 +385,7 @@ class LabelModel(object):
                     # train and evaluate model first
                     self._train(labeled_sample_list)
                     # 启动样本量足够，检测噪声数据再次标注（精标）
-                    noise_samples = self.find_noise(labeled_sample_list)
+                    noise_samples, label_issues_df = self._find_noise(labeled_sample_list)
                     self._input_human_label(noise_samples)
 
             # train and evaluate model after delete noise
@@ -372,7 +393,7 @@ class LabelModel(object):
             # predict unlabeled data
             machine_samples_list = self._predict_unlabeled_data(unlabeled_sample_list, batch_id)
             if self._check_model_can_finish(machine_samples_list):
-                noise_samples = self.find_noise(labeled_sample_list)
+                noise_samples, label_issues_df = self._find_noise(labeled_sample_list)
                 self._input_human_label(noise_samples)
                 self._save_best_model()
                 break
@@ -385,8 +406,3 @@ class LabelModel(object):
             )
             self._input_human_label(choose_sample)
             batch_id += 1
-
-
-if __name__ == "__main__":
-    lm = LabelModel()
-    lm.label()

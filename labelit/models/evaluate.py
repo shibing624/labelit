@@ -5,7 +5,7 @@ import numpy as np
 
 from sklearn import metrics
 from sklearn.metrics import classification_report
-from labelit.utils.logger import logger
+from loguru import logger
 
 
 def evaluate(y_true, y_pred):

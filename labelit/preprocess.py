@@ -3,9 +3,7 @@
 # Brief: 
 from codecs import open
 from time import time
-
-from labelit import config
-from labelit.utils.logger import logger
+from loguru import logger
 
 
 def read_stopwords(path):
@@ -59,6 +57,11 @@ def seg_data(in_file, out_file, col_sep='\t', stop_words_path='', segment_type='
 
 
 if __name__ == '__main__':
+    import sys
+
+    sys.path.append('.')
+    from labelit import config
+
     start_time = time()
     seg_data(config.input_file_path, config.seg_input_file_path, col_sep=config.col_sep,
              stop_words_path=config.stop_words_path, segment_type='word')

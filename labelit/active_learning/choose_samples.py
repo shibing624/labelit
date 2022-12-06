@@ -6,7 +6,7 @@
 
 import math
 import random
-from labelit.utils.logger import logger
+from loguru import logger
 
 
 class ChooseSamples(object):
@@ -127,7 +127,8 @@ class ChooseSamples(object):
         # 规则部分
         rule_num = int(math.ceil(rule_prop * batch_num))
         rule_index = ChooseSamples.index_by_rule(human_rules, rule_samples, rule_num)
-        trusted_index, untrusted_index = ChooseSamples.split_by_threshold(machine_samples_list, lower_thres, upper_thres)
+        trusted_index, untrusted_index = ChooseSamples.split_by_threshold(machine_samples_list, lower_thres,
+                                                                          upper_thres)
         # 阈值外和阈值内部分
         o_index = set(trusted_index) - set(rule_index)
         i_index = set(untrusted_index) - set(rule_index)
