@@ -26,7 +26,8 @@ class Feature(object):
             word_vocab='',
             max_len=400,
             sentence_symbol_path='',
-            stop_words_path=''
+            stop_words_path='',
+            min_count=1,
     ):
         self.data_set = data
         self.feature_type = feature_type
@@ -37,6 +38,7 @@ class Feature(object):
         self.is_infer = is_infer
         self.word_vocab = word_vocab
         self.max_len = max_len
+        self.min_count = min_count
 
     def get_feature(self):
         if self.feature_type == 'tfidf' and self.segment_type == 'word':
@@ -74,7 +76,9 @@ class Feature(object):
             self.vectorizer = load_pkl(self.feature_vec_path)
             data_feature = self.vectorizer.transform(data_set)
         else:
-            self.vectorizer = TfidfVectorizer(analyzer='char', ngram_range=(1, 1), sublinear_tf=True, min_df=1)
+            self.vectorizer = TfidfVectorizer(
+                analyzer='char', ngram_range=(1, 1),
+                sublinear_tf=True, min_df=self.min_count)
             data_feature = self.vectorizer.fit_transform(data_set)
         vocab = self.vectorizer.vocabulary_
         logger.debug('Vocab size:%d' % len(vocab))
@@ -100,8 +104,9 @@ class Feature(object):
             self.vectorizer = load_pkl(self.feature_vec_path)
             data_feature = self.vectorizer.transform(data_set)
         else:
-            self.vectorizer = TfidfVectorizer(analyzer='word', ngram_range=(1, 2),
-                                              vocabulary=self.word_vocab, sublinear_tf=True)
+            self.vectorizer = TfidfVectorizer(
+                analyzer='word', ngram_range=(1, 2),
+                vocabulary=self.word_vocab, sublinear_tf=True, min_df=self.min_count)
             data_feature = self.vectorizer.fit_transform(data_set)
         vocab = self.vectorizer.vocabulary_
         logger.debug('Vocab size:%d' % len(vocab))
@@ -127,10 +132,13 @@ class Feature(object):
             self.vectorizer = load_pkl(self.feature_vec_path)
             data_feature = self.vectorizer.transform(data_set)
         else:
-            self.vectorizer = CountVectorizer(analyzer='word',
-                                              encoding='utf-8',
-                                              lowercase=True,
-                                              vocabulary=self.word_vocab)
+            self.vectorizer = CountVectorizer(
+                analyzer='word',
+                encoding='utf-8',
+                lowercase=False,
+                vocabulary=self.word_vocab,
+                min_df=self.min_count
+            )
             data_feature = self.vectorizer.fit_transform(data_set)
         vocab = self.vectorizer.vocabulary_
         logger.debug('Vocab size:%d' % len(vocab))

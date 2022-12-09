@@ -173,7 +173,8 @@ class LabelModel(object):
             feature_vec_path=self.feature_vec_path,
             word_vocab=word_vocab,
             sentence_symbol_path=self.sentence_symbol_path,
-            stop_words_path=self.stop_words_path
+            stop_words_path=self.stop_words_path,
+            min_count=self.min_count,
         )
         # get data feature
         return feature.get_feature()
