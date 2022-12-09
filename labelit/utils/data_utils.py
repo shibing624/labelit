@@ -159,7 +159,7 @@ def save_predict_result(pred_labels, ture_labels=None, pred_save_path=None, data
 
 def data_reader(path, col_sep='\t', stopwords_path='', segment_type='word', lower=False):
     """
-    读取数据
+    读取数据，并分词获取词列表
     """
     contents = []
     labels = []
@@ -178,7 +178,7 @@ def data_reader(path, col_sep='\t', stopwords_path='', segment_type='word', lowe
                     content = line
                 content = content.lower() if lower else content
                 contents.append(content)
-                words = seg_sentence(contents, stopwords, segment_type)
+                words = seg_sentence(content, stopwords, segment_type)
                 word_list.extend(words)
                 seg_contents.append(' '.join(words))
     return contents, seg_contents, labels, word_list
@@ -200,7 +200,7 @@ def read_stopwords(path):
 def seg_sentence(sentence, stopwords=None, segment_type='word'):
     """
     预处理（切词，去除停用词）
-    :param sentences:
+    :param sentence:
     :param stopwords:
     :param segment_type: char/word
     :return:

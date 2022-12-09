@@ -24,7 +24,6 @@ from labelit.utils.data_utils import (
     load_vocab,
     data_reader,
     save_predict_result,
-    seg_data,
 )
 
 pwd_path = os.path.abspath(os.path.dirname(__file__))
@@ -234,8 +233,8 @@ class LabelModel(object):
         # 找出问题样本
         label_issues_df = self.cl.find_label_issues(X, labels=labels)
         ordered_label_errors = label_issues_df["is_label_issue"].values
-        logger.debug('[find_noise] ordered_label_errors index: {}, size: {}'.format(
-            label_issues_df, len(label_issues_df)))
+        logger.debug(f'[find_noise] label_issues_df size: {len(label_issues_df)}')
+        logger.debug(f'label_issues_df: \n{label_issues_df}')
         noise_samples = [labeled_sample_list[i] for i, issue in enumerate(ordered_label_errors) if issue]
         return noise_samples, label_issues_df
 
