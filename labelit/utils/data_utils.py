@@ -169,7 +169,7 @@ def data_reader(path, col_sep='\t', stopwords_path='', segment_type='word', lowe
     if os.path.exists(path):
         with open(path, mode='r', encoding='utf-8') as f:
             for line in f:
-                line = line.strip()
+                line = line.strip('\n')
                 if col_sep in line:
                     index = line.index(col_sep)
                     labels.append(line[:index].strip())

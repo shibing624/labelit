@@ -137,7 +137,7 @@ class LabelModel(object):
         self.content, self.seg_contents, self.data_lbl, word_lst = data_reader(
             input_file_path, self.col_sep, self.stop_words_path, segment_type='word', lower=False)
         logger.debug(f"Load data cost time: {time() - start_time:.2f}s, data size: {len(self.content)}, "
-                     f"seg_contents size: {len(self.seg_contents)}, data_lbl size: {len(self.data_lbl)},"
+                     f"seg_contents size: {len(self.seg_contents)}, data_lbl size: {len(self.data_lbl)}, "
                      f"seg_contents[:3]: {self.seg_contents[:3]}")
         self.word_vocab = build_vocab(word_lst, min_count=self.min_count, sort=True, lower=False)
         # save word vocab
@@ -165,7 +165,7 @@ class LabelModel(object):
 
     def _get_feature(self, word_vocab):
         # 提取特征
-        logger.info(f"feature_type: {self.feature_type}\nseg_contents: \n{self.seg_contents[:2]}")
+        logger.info(f"feature_type: {self.feature_type}, seg_contents: {self.seg_contents[:2]}")
         feature = Feature(
             data=self.seg_contents,
             feature_type=self.feature_type,
