@@ -138,7 +138,7 @@ class LabelModel(object):
             input_file_path, self.col_sep, self.stop_words_path, segment_type='word', lower=False)
         logger.debug(f"Load data cost time: {time() - start_time:.2f}s, data size: {len(self.content)}, "
                      f"seg_contents size: {len(self.seg_contents)}, data_lbl size: {len(self.data_lbl)}, "
-                     f"seg_contents[:3]: {self.seg_contents[:3]}")
+                     f"seg_contents head: {self.seg_contents[:5]}")
         self.word_vocab = build_vocab(word_lst, min_count=self.min_count, sort=True, lower=False)
         # save word vocab
         write_vocab(self.word_vocab, self.word_vocab_path)
@@ -149,7 +149,7 @@ class LabelModel(object):
         logger.info("label_id: %s" % label_id)
         self.set_label_id(label_id)
         self.id_label = {v: k for k, v in label_id.items()}
-        logger.info('num_classes:%d' % self.num_classes)
+        logger.info('num_classes: %d' % self.num_classes)
         self.data_feature = self._get_feature(self.word_vocab)
 
         # Assemble sample DataObject
@@ -165,7 +165,7 @@ class LabelModel(object):
 
     def _get_feature(self, word_vocab):
         # 提取特征
-        logger.info(f"feature_type: {self.feature_type}, seg_contents: {self.seg_contents[:2]}")
+        logger.info(f"feature_type: {self.feature_type}, seg_contents: {self.seg_contents[:5]}")
         feature = Feature(
             data=self.seg_contents,
             feature_type=self.feature_type,
@@ -217,7 +217,8 @@ class LabelModel(object):
                 unlabeled_sample_list.append(i)
         self.set_labeled_sample_num(len(labeled_sample_list))
         self.set_unlabeled_sample_num(len(unlabeled_sample_list))
-        logger.info(f"labeled size: {len(labeled_sample_list)}; unlabeled size: {len(unlabeled_sample_list)}")
+        logger.info(f"labeled size: {len(labeled_sample_list)}, unlabeled size: {len(unlabeled_sample_list)}, "
+                    f"labeled head: {labeled_sample_list[:5]}, unlabeled head: {unlabeled_sample_list[:5]}")
         return labeled_sample_list, unlabeled_sample_list
 
     def _split_labels_and_text(self, labeled_sample_list):
