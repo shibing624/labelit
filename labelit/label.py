@@ -108,7 +108,6 @@ class LabelModel(object):
         """
         if not os.path.exists(model_dir):
             os.makedirs(model_dir)
-        self.seg_input_file_path = os.path.join(model_dir, "seg_{}".format(input_file_path.split("/")[-1]))
         # vocab path
         self.word_vocab_path = os.path.join(model_dir,
                                             "vocab_{}_{}_{}.txt".format(feature_type, segment_type, model_type))
@@ -134,26 +133,16 @@ class LabelModel(object):
         self.upper_thres = upper_thres
         self.label_confidence_threshold = label_confidence_threshold
 
-        # 1. load segment data
-        if not os.path.exists(self.seg_input_file_path):
-            start_time = time()
-            seg_data(input_file_path, self.seg_input_file_path, col_sep=self.col_sep,
-                     stop_words_path=self.stop_words_path, segment_type=segment_type)
-            logger.info("spend time: %s s" % (time() - start_time))
-        self.seg_contents, self.data_lbl = data_reader(self.seg_input_file_path, self.col_sep)
-
-        # 2. load original data
-        self.content, _ = data_reader(input_file_path, self.col_sep)
-
-        # 3. load feature
-        word_lst = []
-        for i in self.seg_contents:
-            word_lst.extend(i.split())
-        # word vocab
-        self.word_vocab = build_vocab(word_lst, min_count=self.min_count, sort=True, lower=True)
+        # Load data
+        start_time = time()
+        self.content, self.seg_contents, self.data_lbl, word_lst = data_reader(
+            input_file_path, self.col_sep, self.stop_words_path, segment_type='word', lower=False)
+        logger.debug(f"Load data cost time: {time() - start_time:.2f}s, data size: {len(self.content)}, "
+                     f"seg_contents size: {len(self.seg_contents)}, data_lbl size: {len(self.data_lbl)},"
+                     f"seg_contents[:3]: {self.seg_contents[:3]}")
+        self.word_vocab = build_vocab(word_lst, min_count=self.min_count, sort=True, lower=False)
         # save word vocab
         write_vocab(self.word_vocab, self.word_vocab_path)
-        # label
         label_vocab = build_vocab(self.data_lbl)
         # save label vocab
         write_vocab(label_vocab, self.label_vocab_path)
@@ -164,13 +153,13 @@ class LabelModel(object):
         logger.info('num_classes:%d' % self.num_classes)
         self.data_feature = self._get_feature(self.word_vocab)
 
-        # 4. assemble sample DataObject
+        # Assemble sample DataObject
         self.samples = self._get_samples(self.data_feature)
         self.batch_num = batch_size if batch_size > 1 else batch_size * len(self.samples)
         self.warmstart_num = warmstart_size if warmstart_size > 1 else warmstart_size * len(self.samples)
         self.label_min_num = label_min_size if label_min_size > 1 else label_min_size * len(self.samples)
 
-        # 5. init model
+        # Init model
         self.model = get_model(model_type)
         self.cl = CleanLearning(clf=get_model(cl_model_type), verbose=True)
         self.model_trained = False

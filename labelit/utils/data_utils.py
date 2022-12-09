@@ -5,6 +5,7 @@
 """
 import os
 import pickle
+import jieba
 from codecs import open
 from collections import defaultdict
 from loguru import logger
@@ -113,6 +114,9 @@ def dump_pkl(vocab, pkl_path, overwrite=True):
 
 
 def get_char_segment_data(contents, word_sep=' ', pos_sep='/'):
+    """
+    获取分字数据
+    """
     data = []
     for content in contents:
         temp = ''
@@ -127,6 +131,11 @@ def get_char_segment_data(contents, word_sep=' ', pos_sep='/'):
 
 
 def load_list(path):
+    """
+    读取列表
+    """
+    if not os.path.exists(path):
+        return []
     return [word for word in open(path, 'r', encoding='utf-8').read().split()]
 
 
@@ -148,68 +157,59 @@ def save_predict_result(pred_labels, ture_labels=None, pred_save_path=None, data
         logger.info("pred_save_path: {}".format(pred_save_path))
 
 
-def data_reader(path, col_sep='\t'):
-    contents, labels = [], []
-    with open(path, mode='r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if col_sep in line:
-                index = line.index(col_sep)
-                label = line[:index].strip()
-                if label:
-                    labels.append(label)
-                content = line[index + 1:].strip()
-            else:
-                content = line
-            contents.append(content)
-    return contents, labels
+def data_reader(path, col_sep='\t', stopwords_path='', segment_type='word', lower=False):
+    """
+    读取数据
+    """
+    contents = []
+    labels = []
+    seg_contents = []
+    word_list = []
+    stopwords = read_stopwords(stopwords_path)
+    if os.path.exists(path):
+        with open(path, mode='r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if col_sep in line:
+                    index = line.index(col_sep)
+                    labels.append(line[:index].strip())
+                    content = line[index + 1:].strip()
+                else:
+                    content = line
+                content = content.lower() if lower else content
+                contents.append(content)
+                words = seg_sentence(contents, stopwords, segment_type)
+                word_list.extend(words)
+                seg_contents.append(' '.join(words))
+    return contents, seg_contents, labels, word_list
 
 
 def read_stopwords(path):
+    """
+    读取停用词
+    """
     lines = set()
-    with open(path, mode='r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            lines.add(line)
+    if os.path.exists(path):
+        with open(path, mode='r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                lines.add(line)
     return lines
 
 
-def seg_data(in_file, out_file, col_sep='\t', stop_words_path='', segment_type='word'):
+def seg_sentence(sentence, stopwords=None, segment_type='word'):
     """
     预处理（切词，去除停用词）
-    :param in_file:
-    :param out_file:
-    :param col_sep:
-    :param stop_words_path:
+    :param sentences:
+    :param stopwords:
     :param segment_type: char/word
     :return:
     """
-    stopwords = read_stopwords(stop_words_path)
-    with open(in_file, 'r', encoding='utf-8') as f1, open(out_file, 'w', encoding='utf-8') as f2:
-        count = 0
-        for line in f1:
-            line = line.rstrip()
-            parts = line.split(col_sep)
-            if len(parts) < 2:
-                continue
-            label = parts[0].strip()
-            data = ' '.join(parts[1:])
-            if segment_type == 'word':
-                import jieba
-                seg_list = jieba.lcut(data)
-                seg_words = []
-                for i in seg_list:
-                    if i in stopwords:
-                        continue
-                    seg_words.append(i)
-                seg_line = ' '.join(seg_words)
-            else:
-                seg_line = ' '.join(list(data))
-            if count % 1000 == 0:
-                logger.debug('count:%d' % count)
-                logger.debug(line)
-                logger.debug('=' * 20)
-                logger.debug(seg_line)
-            count += 1
-            f2.write('%s\t%s\n' % (label, seg_line))
-        logger.info('%s to %s, size: %d' % (in_file, out_file, count))
+    stopwords = stopwords if stopwords else set()
+    sentence = sentence.strip()
+    if segment_type == 'word':
+        words = jieba.cut(sentence)
+    else:
+        words = list(sentence)
+    words = [word for word in words if word not in stopwords]
+    return words
