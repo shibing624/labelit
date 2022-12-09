@@ -123,8 +123,8 @@ class LabelModel(object):
         # predict result
         self.pred_save_path = os.path.join(model_dir,
                                            "pred_result_{}_{}_{}.txt".format(feature_type, segment_type, model_type))
-        self.sentence_symbol_path = sentence_symbol_path if sentence_symbol_path else default_sentence_symbol_path
-        self.stop_words_path = stop_words_path if stop_words_path else default_stop_words_path
+        self.sentence_symbol_path = default_sentence_symbol_path if sentence_symbol_path is None else sentence_symbol_path
+        self.stop_words_path = default_stop_words_path if stop_words_path is None else stop_words_path
         self.feature_type = feature_type
         self.segment_type = segment_type
         self.num_classes = num_classes
